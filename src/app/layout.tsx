@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
+import { AppShell } from "@/components/app-shell";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "UD Fantasy Football",
-  description: "",
+  title: {
+    default: "UD Fantasy Football",
+    template: "%s · UD Fantasy Football",
+  },
+  description:
+    "The home of UD Fantasy Football—matchups, standings, teams, records, and league history.",
 };
 
 export default function RootLayout({
@@ -14,7 +19,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        {children}
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );

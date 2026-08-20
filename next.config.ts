@@ -3,9 +3,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   /* config options here */
   images: {
-    domains: [
-      'sleepercdn.com', // avatars
-      'a.espncdn.com' // player and team logos
+    remotePatterns: [
+      { protocol: "https", hostname: "sleepercdn.com" },
+      { protocol: "https", hostname: "a.espncdn.com" },
     ],
   },
 };
