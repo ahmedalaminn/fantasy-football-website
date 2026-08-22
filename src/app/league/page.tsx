@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Badge, Card, ErrorState, PageHeader, Tabs } from "@/components/ui";
-import { leagueContent } from "@/lib/content";
 import { getCurrentSeason } from "@/lib/sleeper";
 
 export const metadata: Metadata = { title: "League Info" };
@@ -9,7 +8,6 @@ const tabs = [
   { id: "settings", label: "Settings" },
   { id: "scoring", label: "Scoring" },
   { id: "rules", label: "Constitution" },
-  { id: "resources", label: "Resources" },
 ];
 const labels: Record<string, string> = {
   playoff_teams: "Playoff teams",
@@ -148,45 +146,7 @@ export default async function LeaguePage({
                 <h2>Rules & conduct</h2>
               </div>
             </div>
-            <div className="rules">
-              {leagueContent.constitution.map((rule, index) => (
-                <article
-                  className="rule"
-                  id={`rule-${index + 1}`}
-                  key={rule.title}
-                >
-                  <Badge>{String(index + 1).padStart(2, "0")}</Badge>
-                  <h3>{rule.title}</h3>
-                  <p>{rule.body}</p>
-                </article>
-              ))}
-            </div>
-          </Card>
-        )}
-        {active === "resources" && (
-          <Card className="league-section">
-            <div className="section-header">
-              <div>
-                <span className="eyebrow">Curated links</span>
-                <h2>Fantasy resources</h2>
-              </div>
-            </div>
-            <div className="resource-grid">
-              {leagueContent.resources.map((resource) => (
-                <a
-                  className="resource"
-                  href={resource.href}
-                  target="_blank"
-                  rel="noreferrer"
-                  key={resource.name}
-                >
-                  <Badge tone="aqua">{resource.category}</Badge>
-                  <h3>{resource.name}</h3>
-                  <p>{resource.description}</p>
-                  <span className="text-link">Visit resource ↗</span>
-                </a>
-              ))}
-            </div>
+            <p>ahad this is ur job</p>
           </Card>
         )}
       </div>

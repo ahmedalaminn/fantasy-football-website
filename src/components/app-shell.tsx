@@ -12,6 +12,10 @@ const primaryNav: Array<{ href: string; label: string; icon: IconName }> = [
   { href: "/standings", label: "Standings", icon: "standings" },
   { href: "/teams", label: "Teams", icon: "teams" },
 ];
+const assistantNav: Array<{ href: string; label: string; icon: IconName }> = [
+  { href: "/assistant", label: "AI Assistant", icon: "spark" },
+  { href: "/rivalries", label: "Rivalries", icon: "teams" },
+];
 const archiveNav: Array<{ href: string; label: string; icon: IconName }> = [
   { href: "/history", label: "History", icon: "history" },
   { href: "/league", label: "League", icon: "league" },
@@ -72,6 +76,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <NavLink key={item.href} {...item} />
             ))}
           </div>
+          <div className="nav-group">
+            <span className="nav-label">Tools</span>
+            {assistantNav.map((item) => (
+              <NavLink key={item.href} {...item} />
+            ))}
+          </div>
         </nav>
         <a
           className="sleeper-link"
@@ -97,9 +107,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
       <main className="page-content">{children}</main>
       <nav className="mobile-nav" aria-label="Mobile navigation">
-        {primaryNav
+        {[...primaryNav, ...assistantNav]
           .filter((item) =>
-            ["/", "/matchups", "/standings", "/teams"].includes(item.href),
+            ["/", "/assistant", "/matchups", "/standings"].includes(item.href),
+          )
+          .sort(
+            (a, b) =>
+              ["/", "/assistant", "/matchups", "/standings"].indexOf(a.href) -
+              ["/", "/assistant", "/matchups", "/standings"].indexOf(b.href),
           )
           .map((item) => (
             <NavLink key={item.href} {...item} />
@@ -135,7 +150,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </button>
             </div>
             <div className="sheet-links">
-              {[primaryNav[2], ...archiveNav].map((item) => (
+              {[
+                ...primaryNav.filter(
+                  (item) =>
+                    !["/", "/matchups", "/standings"].includes(item.href),
+                ),
+                ...archiveNav,
+                ...assistantNav.filter((item) => item.href !== "/assistant"),
+              ].map((item) => (
                 <NavLink
                   key={item.href}
                   {...item}

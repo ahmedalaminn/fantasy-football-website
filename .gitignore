@@ -15,10 +15,16 @@
 
 # next.js
 /.next/
+/.next-dev/
 /out/
 
 # production
 /build
+
+# generated ML data and fitted models
+/ml/data/raw/
+/ml/data/processed/
+/ml/artifacts/
 
 # misc
 .DS_Store

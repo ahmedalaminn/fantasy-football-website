@@ -11,6 +11,7 @@ import type {
 } from "@/lib/types";
 import { Icon } from "./icon";
 import { Avatar, Badge, EmptyState, TeamIdentity } from "./ui";
+import { SleeperPlayerLink } from "./sleeper-player-link";
 
 export function MatchupList({
   matchups,
@@ -210,9 +211,20 @@ export function PlayerRow({
         <Image src={playerImageUrl(playerId)} alt="" fill sizes="35px" />
       </span>
       <span className="player-row-copy">
-        <strong>{player?.full_name || `Player ${playerId}`}</strong>
+        <strong>
+          <SleeperPlayerLink
+            id={playerId}
+            name={player?.full_name || `Player ${playerId}`}
+            position={player?.position}
+          />
+        </strong>
         <small>
           {[player?.position, player?.team || "FA", starter ? "Starter" : null]
+            .concat(
+              player?.depth_chart_order && player.position && !["K", "DEF"].includes(player.position)
+                ? `${player.position}${player.depth_chart_order}`
+                : [],
+            )
             .filter(Boolean)
             .join(" · ")}
         </small>

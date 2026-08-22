@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Keep the development and production module manifests isolated. Running
+  // `next dev` and `next build` against the same directory can leave the dev
+  // server holding references to chunks that the build replaced.
+  distDir: process.env.NODE_ENV === "development" ? ".next-dev" : ".next",
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "sleepercdn.com" },

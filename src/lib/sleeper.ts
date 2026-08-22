@@ -98,9 +98,16 @@ export const getDrafts = cache((leagueId: string) =>
   sleeperFetch<SleeperDraft[]>(`/league/${leagueId}/drafts`, HISTORY_TTL),
 );
 
+export const getDraft = cache((draftId: string) =>
+  sleeperFetch<SleeperDraft>(`/draft/${draftId}`, ACTIVE_TTL),
+);
+
 export const getDraftPicks = cache((draftId: string) =>
   sleeperFetch<SleeperDraftPick[]>(`/draft/${draftId}/picks`, HISTORY_TTL),
 );
+
+export const getLiveDraftPicks = (draftId: string) =>
+  sleeperFetch<SleeperDraftPick[]>(`/draft/${draftId}/picks`, 2);
 
 export const getTradedPicks = cache((draftId: string) =>
   sleeperFetch<TradedPick[]>(`/draft/${draftId}/traded_picks`, HISTORY_TTL),

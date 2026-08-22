@@ -8,7 +8,6 @@ import {
   EmptyState,
   ErrorState,
   PageHeader,
-  Stat,
   Tabs,
 } from "@/components/ui";
 import {
@@ -28,6 +27,7 @@ import {
   getTransactions,
 } from "@/lib/sleeper";
 import type { SeasonBundle, SleeperPlayer } from "@/lib/types";
+import { SleeperPlayerLink } from "@/components/sleeper-player-link";
 
 export const metadata: Metadata = { title: "League History" };
 export const dynamic = "force-dynamic";
@@ -36,7 +36,6 @@ const tabs = [
   { id: "awards", label: "Awards" },
   { id: "records", label: "Records" },
   { id: "drafts", label: "Drafts" },
-  { id: "rivalries", label: "Rivalries" },
 ];
 
 async function loadBundles() {
@@ -70,8 +69,6 @@ export default async function HistoryPage({
   searchParams: Promise<{
     tab?: string;
     season?: string;
-    p1?: string;
-    p2?: string;
   }>;
 }) {
   try {
@@ -91,7 +88,7 @@ export default async function HistoryPage({
         <PageHeader
           eyebrow={`${bundles.length} seasons archived`}
           title="League history"
-          description="Championships, records, draft nights, and the matchups that built the league."
+          description="Championships, records, and draft nights from across the league."
         />
         <Tabs items={tabs} active={active} basePath="/history" />
         {active === "champions" && <Champions champions={champions} />}{" "}
@@ -102,9 +99,6 @@ export default async function HistoryPage({
         {active === "drafts" && selected && (
           <Drafts bundles={bundles} selected={selected} />
         )}{" "}
-        {active === "rivalries" && (
-          <Rivalries bundles={bundles} p1={query.p1} p2={query.p2} />
-        )}
       </div>
     );
   } catch (error) {
@@ -444,6 +438,13 @@ async function Drafts({
                       entry.round === round && entry.draft_slot === slot,
                   );
                   const player = pick ? players[pick.player_id] : null;
+                  const playerName = pick
+                    ? player?.full_name ||
+                      [pick.metadata?.first_name, pick.metadata?.last_name]
+                        .filter(Boolean)
+                        .join(" ") ||
+                      pick.player_id
+                    : "";
                   const team = pick
                     ? selected.teams.find(
                         (entry) => entry.rosterId === pick.roster_id,
@@ -454,11 +455,13 @@ async function Drafts({
                       {pick ? (
                         <>
                           <strong>
-                            {player?.full_name ||
-                              pick.metadata?.first_name +
-                                " " +
-                                pick.metadata?.last_name ||
-                              pick.player_id}
+                            <SleeperPlayerLink
+                              id={pick.player_id}
+                              name={playerName}
+                              position={
+                                player?.position || pick.metadata?.position
+                              }
+                            />
                           </strong>
                           <small>
                             {player?.position || pick.metadata?.position} ·{" "}
@@ -507,189 +510,5 @@ function SeasonLinks({
         </Link>
       ))}
     </nav>
-  );
-}
-
-async function Rivalries({
-  bundles,
-  p1,
-  p2,
-}: {
-  bundles: SeasonBundle[];
-  p1?: string;
-  p2?: string;
-}) {
-  const people = new Map<string, string>();
-  bundles.forEach((bundle) =>
-    bundle.teams.forEach((team) => {
-      if (team.ownerId) people.set(team.ownerId, team.managerName);
-    }),
-  );
-  const ids = [...people.keys()];
-  const one = people.has(p1 || "") ? p1! : ids[0];
-  const two =
-    people.has(p2 || "") && p2 !== one
-      ? p2!
-      : ids.find((id) => id !== one) || ids[0];
-  const seasons = await loadSeasonWeeks(bundles);
-  let wins = 0,
-    losses = 0,
-    ties = 0,
-    forPoints = 0,
-    against = 0,
-    games = 0;
-  const history: Array<{
-    season: string;
-    week: number;
-    one: number;
-    two: number;
-  }> = [];
-  for (const season of seasons) {
-    const teamOne = season.teams.find((team) => team.ownerId === one);
-    const teamTwo = season.teams.find((team) => team.ownerId === two);
-    if (!teamOne || !teamTwo) continue;
-    for (const week of season.weeks) {
-      const a = week.matchups.find((row) => row.roster_id === teamOne.rosterId);
-      const b = week.matchups.find((row) => row.roster_id === teamTwo.rosterId);
-      if (!a || !b || a.matchup_id == null || a.matchup_id !== b.matchup_id)
-        continue;
-      games++;
-      forPoints += a.points;
-      against += b.points;
-      if (a.points > b.points) wins++;
-      else if (a.points < b.points) losses++;
-      else ties++;
-      history.push({
-        season: season.league.season,
-        week: week.week,
-        one: a.points,
-        two: b.points,
-      });
-    }
-  }
-  const tradeSets = await Promise.all(bundles.map(loadTransactions));
-  let trades = 0;
-  bundles.forEach((bundle, index) => {
-    const a = bundle.teams.find((team) => team.ownerId === one);
-    const b = bundle.teams.find((team) => team.ownerId === two);
-    if (a && b)
-      trades += tradeSets[index].filter(
-        (tx) =>
-          tx.type === "trade" &&
-          tx.roster_ids.includes(a.rosterId) &&
-          tx.roster_ids.includes(b.rosterId),
-      ).length;
-  });
-  return (
-    <div>
-      <form className="rival-selects" action="/history">
-        <input type="hidden" name="tab" value="rivalries" />
-        <label>
-          <span>Manager one</span>
-          <select name="p1" defaultValue={one}>
-            {ids.map((id) => (
-              <option key={id} value={id}>
-                {people.get(id)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <span className="rival-vs">VS</span>
-        <label>
-          <span>Manager two</span>
-          <select name="p2" defaultValue={two}>
-            {ids.map((id) => (
-              <option key={id} value={id}>
-                {people.get(id)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button className="button button-primary" type="submit">
-          Compare
-        </button>
-      </form>
-      <Card className="panel-pad">
-        <div className="rivalry-head">
-          <div>
-            <Avatar name={people.get(one) || "Manager"} size="lg" />
-            <h2>{people.get(one)}</h2>
-          </div>
-          <div>
-            <Badge tone="violet">Head to head</Badge>
-            <strong>
-              {wins} — {losses}
-            </strong>
-            <small>
-              {ties} ties · {games} meetings
-            </small>
-          </div>
-          <div>
-            <Avatar name={people.get(two) || "Manager"} size="lg" />
-            <h2>{people.get(two)}</h2>
-          </div>
-        </div>
-        <div className="four-col rivalry-stats">
-          <Stat
-            label="Win pct"
-            value={games ? `${Math.round((wins / games) * 100)}%` : "—"}
-            tone="aqua"
-          />
-          <Stat label="Points for" value={formatPoints(forPoints)} />
-          <Stat label="Points against" value={formatPoints(against)} />
-          <Stat label="Trades" value={trades} tone="violet" />
-        </div>
-      </Card>
-      <div className="section-header rivalry-history-title">
-        <div>
-          <span className="eyebrow">Every meeting</span>
-          <h2>Matchup history</h2>
-        </div>
-      </div>
-      <Card>
-        {history.length ? (
-          <div className="data-table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Season</th>
-                  <th>Week</th>
-                  <th>{people.get(one)}</th>
-                  <th>{people.get(two)}</th>
-                  <th>Winner</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history
-                  .sort(
-                    (a, b) =>
-                      b.season.localeCompare(a.season) || b.week - a.week,
-                  )
-                  .map((game) => (
-                    <tr key={`${game.season}-${game.week}`}>
-                      <td>{game.season}</td>
-                      <td>{game.week}</td>
-                      <td>{formatPoints(game.one)}</td>
-                      <td>{formatPoints(game.two)}</td>
-                      <td>
-                        {game.one === game.two
-                          ? "Tie"
-                          : game.one > game.two
-                            ? people.get(one)
-                            : people.get(two)}
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <EmptyState
-            title="No head-to-head matchups"
-            description="These managers have not faced each other in the linked seasons."
-          />
-        )}
-      </Card>
-    </div>
   );
 }

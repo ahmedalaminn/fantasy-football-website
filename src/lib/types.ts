@@ -12,6 +12,7 @@ export interface SleeperLeague {
   roster_positions: string[];
   scoring_settings: Record<string, number>;
   settings: Record<string, number>;
+  draft_id?: string | null;
 }
 
 export interface SleeperUser {
@@ -44,6 +45,13 @@ export interface SleeperPlayer {
   position: string | null;
   fantasy_positions: string[] | null;
   status?: string | null;
+  active?: boolean;
+  age?: number | null;
+  years_exp?: number | null;
+  search_rank?: number | null;
+  depth_chart_order?: number | null;
+  injury_status?: string | null;
+  bye_week?: number | null;
 }
 
 export interface SleeperMatchup {
@@ -88,6 +96,7 @@ export interface SleeperDraft {
   start_time: number | null;
   settings: Record<string, number>;
   slot_to_roster_id: Record<string, number>;
+  draft_order?: Record<string, number>;
   metadata?: Record<string, string>;
 }
 
