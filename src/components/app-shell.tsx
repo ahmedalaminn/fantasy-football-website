@@ -13,7 +13,6 @@ const primaryNav: Array<{ href: string; label: string; icon: IconName }> = [
   { href: "/teams", label: "Teams", icon: "teams" },
 ];
 const assistantNav: Array<{ href: string; label: string; icon: IconName }> = [
-  { href: "/assistant", label: "AI Assistant", icon: "spark" },
   { href: "/rivalries", label: "Rivalries", icon: "teams" },
 ];
 const archiveNav: Array<{ href: string; label: string; icon: IconName }> = [
@@ -109,12 +108,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <nav className="mobile-nav" aria-label="Mobile navigation">
         {[...primaryNav, ...assistantNav]
           .filter((item) =>
-            ["/", "/assistant", "/matchups", "/standings"].includes(item.href),
+            ["/", "/matchups", "/standings"].includes(item.href),
           )
           .sort(
             (a, b) =>
-              ["/", "/assistant", "/matchups", "/standings"].indexOf(a.href) -
-              ["/", "/assistant", "/matchups", "/standings"].indexOf(b.href),
+              ["/", "/matchups", "/standings"].indexOf(a.href) -
+              ["/", "/matchups", "/standings"].indexOf(b.href),
           )
           .map((item) => (
             <NavLink key={item.href} {...item} />
