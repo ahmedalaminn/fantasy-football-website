@@ -12,13 +12,50 @@ const primaryNav: Array<{ href: string; label: string; icon: IconName }> = [
   { href: "/standings", label: "Standings", icon: "standings" },
   { href: "/teams", label: "Teams", icon: "teams" },
 ];
-const assistantNav: Array<{ href: string; label: string; icon: IconName }> = [
+const toolsNav: Array<{ href: string; label: string; icon: IconName }> = [
+  { href: "/best-ball", label: "Best ball", icon: "spark" },
   { href: "/rivalries", label: "Rivalries", icon: "teams" },
 ];
 const archiveNav: Array<{ href: string; label: string; icon: IconName }> = [
   { href: "/history", label: "History", icon: "history" },
   { href: "/league", label: "League", icon: "league" },
 ];
+
+function ThemeToggle({
+  theme,
+  onToggle,
+}: {
+  theme: "light" | "dark";
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      className="theme-toggle"
+      type="button"
+      onClick={onToggle}
+      aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
+      aria-pressed={theme === "dark"}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        aria-hidden="true"
+      >
+        {theme === "light" ? (
+          <path d="M20.5 14A9 9 0 0 1 10 3.5 9 9 0 1 0 20.5 14Z" />
+        ) : (
+          <>
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5" />
+          </>
+        )}
+      </svg>
+      <span>{theme === "light" ? "Dark mode" : "Light mode"}</span>
+    </button>
+  );
+}
 
 function NavLink({
   href,
@@ -49,6 +86,30 @@ function NavLink({
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+  useEffect(() => {
+    setTheme(
+      document.documentElement.dataset.theme === "dark" ? "dark" : "light",
+    );
+    const sync = (event: StorageEvent) => {
+      if (event.key !== "ud-theme") return;
+      const next = event.newValue === "dark" ? "dark" : "light";
+      document.documentElement.dataset.theme = next;
+      setTheme(next);
+    };
+    window.addEventListener("storage", sync);
+    return () => window.removeEventListener("storage", sync);
+  }, []);
+  const toggleTheme = () => {
+    const next = theme === "light" ? "dark" : "light";
+    document.documentElement.dataset.theme = next;
+    setTheme(next);
+    try {
+      localStorage.setItem("ud-theme", next);
+    } catch {
+      /* Theme still works when storage is unavailable. */
+    }
+  };
   useEffect(() => setMoreOpen(false), [pathname]);
   return (
     <div className="app-shell">
@@ -77,11 +138,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="nav-group">
             <span className="nav-label">Tools</span>
-            {assistantNav.map((item) => (
+            {toolsNav.map((item) => (
               <NavLink key={item.href} {...item} />
             ))}
           </div>
         </nav>
+        <ThemeToggle theme={theme} onToggle={toggleTheme} />
         <a
           className="sleeper-link"
           href="https://sleeper.com/"
@@ -100,13 +162,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <span>UD</span>
           <strong>Fantasy Football</strong>
         </Link>
-        <span className="live-pill">
-          <i /> League HQ
-        </span>
+        <ThemeToggle theme={theme} onToggle={toggleTheme} />
       </div>
       <main className="page-content">{children}</main>
       <nav className="mobile-nav" aria-label="Mobile navigation">
-        {[...primaryNav, ...assistantNav]
+        {[...primaryNav, ...toolsNav]
           .filter((item) =>
             ["/", "/matchups", "/standings"].includes(item.href),
           )
@@ -155,7 +215,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     !["/", "/matchups", "/standings"].includes(item.href),
                 ),
                 ...archiveNav,
-                ...assistantNav.filter((item) => item.href !== "/assistant"),
+                ...toolsNav,
               ].map((item) => (
                 <NavLink
                   key={item.href}

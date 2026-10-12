@@ -150,43 +150,81 @@ export function ActivityList({
   return (
     <div className="activity-list">
       {rows.map((transaction) => {
-        const managers = transaction.roster_ids
-          .map((id) => teamMap.get(id)?.managerName)
-          .filter(Boolean);
-        const added = Object.keys(transaction.adds ?? {}).map(
-          (id) => players[id]?.full_name || "Unknown player",
-        );
-        const dropped = Object.keys(transaction.drops ?? {}).map(
-          (id) => players[id]?.full_name || "Unknown player",
-        );
-        const detail =
-          transaction.type === "trade"
-            ? `${managers.join(" ↔ ")} · ${[...added, ...dropped].slice(0, 3).join(", ")}`
-            : `${managers[0] || "League"} · ${added.length ? `Added ${added.join(", ")}` : ""}${added.length && dropped.length ? " · " : ""}${dropped.length ? `Dropped ${dropped.join(", ")}` : ""}`;
+        const involved = transaction.roster_ids
+          .map((id) => teamMap.get(id))
+          .filter((team): team is Team => Boolean(team));
+        const completed = transaction.status === "complete";
         return (
-          <div className="activity-row" key={transaction.transaction_id}>
-            <span className="activity-icon">
-              <Icon
-                name={transaction.type === "trade" ? "activity" : "spark"}
-              />
-            </span>
+          <article
+            className="activity-row activity-event"
+            key={transaction.transaction_id}
+          >
             <div className="activity-copy">
-              <strong>
-                {transaction.type === "trade"
-                  ? "Trade completed"
-                  : transaction.type === "waiver"
-                    ? "Waiver processed"
-                    : "Roster move"}
-              </strong>
-              <p>{detail || "Transaction processed in Sleeper"}</p>
+              <div className="activity-event-head">
+                <Badge tone={completed ? "aqua" : "neutral"}>
+                  {transaction.type.replaceAll("_", " ")}
+                </Badge>
+                <span className="activity-time">
+                  {new Intl.DateTimeFormat("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                    timeZone: "America/New_York",
+                  }).format(transaction.status_updated)}{" "}
+                  ET
+                </span>
+              </div>
+              <div className="activity-managers">
+                {involved.map((team) => (
+                  <Link href={`/teams/${team.rosterId}`} key={team.rosterId}>
+                    <TeamIdentity team={team} compact />
+                  </Link>
+                ))}
+              </div>
+              {!completed && <p>Status: {transaction.status}</p>}
+              <div className="activity-assets">
+                {(["adds", "drops"] as const).flatMap((direction) =>
+                  Object.entries(transaction[direction] ?? {}).map(
+                    ([id, rosterId]) => (
+                      <div
+                        className={`activity-asset ${direction}`}
+                        key={`${direction}-${id}`}
+                      >
+                        <PlayerRow playerId={id} players={players} />
+                        <small>
+                          <strong>
+                            {direction === "adds" ? "Received" : "Released"}
+                          </strong>{" "}
+                          ·{" "}
+                          {teamMap.get(rosterId)?.managerName ??
+                            `Roster ${rosterId}`}
+                        </small>
+                      </div>
+                    ),
+                  ),
+                )}
+              </div>
+              {transaction.draft_picks?.map((pick, index) => (
+                <p key={index}>
+                  {pick.season} Round {pick.round} pick ·{" "}
+                  {teamMap.get(pick.previous_owner_id)?.managerName ??
+                    "Previous owner"}{" "}
+                  → {teamMap.get(pick.owner_id)?.managerName ?? "New owner"}
+                </p>
+              ))}
+              {transaction.settings?.waiver_bid != null && (
+                <p>FAAB bid: ${transaction.settings.waiver_bid}</p>
+              )}
+              {transaction.waiver_budget?.map((budget, index) => (
+                <p key={index}>
+                  ${budget.amount} FAAB ·{" "}
+                  {teamMap.get(budget.sender)?.managerName} →{" "}
+                  {teamMap.get(budget.receiver)?.managerName}
+                </p>
+              ))}
             </div>
-            <span className="activity-time">
-              {new Intl.DateTimeFormat("en-US", {
-                month: "short",
-                day: "numeric",
-              }).format(transaction.status_updated)}
-            </span>
-          </div>
+          </article>
         );
       })}
     </div>
@@ -221,7 +259,9 @@ export function PlayerRow({
         <small>
           {[player?.position, player?.team || "FA", starter ? "Starter" : null]
             .concat(
-              player?.depth_chart_order && player.position && !["K", "DEF"].includes(player.position)
+              player?.depth_chart_order &&
+                player.position &&
+                !["K", "DEF"].includes(player.position)
                 ? `${player.position}${player.depth_chart_order}`
                 : [],
             )

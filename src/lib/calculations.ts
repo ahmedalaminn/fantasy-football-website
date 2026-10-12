@@ -72,16 +72,18 @@ export function pairMatchups(
       const team = teamMap.get(matchup.roster_id);
       return team ? [{ team, matchup }] : [];
     });
-    const hasScore = grouped.some((row) => row.points > 0);
+    const hasScore = grouped.some((row) => row.points !== 0);
     return {
       matchupId,
       teams: entries,
       status:
         entries.length < 2
           ? "bye"
-          : complete || hasScore
+          : complete
             ? "final"
-            : "upcoming",
+            : hasScore
+              ? "live"
+              : "upcoming",
     };
   });
 }
@@ -191,107 +193,125 @@ export function optimalLineupScore(
   return total;
 }
 
-const percentileScores = (values: Map<number, number>) => {
-  const sorted = [...values.values()].sort((a, b) => a - b);
-  const scores = new Map<number, number>();
-  for (const [id, value] of values) {
-    if (sorted.length <= 1) scores.set(id, 100);
-    else
-      scores.set(
-        id,
-        (sorted.findLastIndex((entry) => entry <= value) /
-          (sorted.length - 1)) *
-          100,
-      );
-  }
-  return scores;
-};
+// Award N..1 category points. Tied teams share the average of occupied places.
+function categoryPoints(values: Map<number, number>) {
+  const all = [...values.values()];
+  return new Map(
+    [...values].map(([id, value]) => {
+      const better = all.filter((other) => other > value).length;
+      const tied = all.filter((other) => other === value).length;
+      return [id, all.length - better - (tied - 1) / 2];
+    }),
+  );
+}
 
 function calculateRankingSnapshot(
   teams: Team[],
   weeks: Array<{ week: number; matchups: SleeperMatchup[] }>,
-  throughWeek: number,
   league: SleeperLeague,
   players: Record<string, SleeperPlayer>,
 ) {
-  const relevant = weeks.filter((week) => week.week <= throughWeek);
-  const recentWeeks = relevant.slice(-3);
-  const winPct = new Map<number, number>();
-  const ppg = new Map<number, number>();
-  const recent = new Map<number, number>();
-  const efficiency = new Map<number, number>();
-
-  for (const team of teams) {
-    const rows = relevant.flatMap((week) =>
-      week.matchups.filter((row) => row.roster_id === team.rosterId),
-    );
-    const games = rows.filter((row) => row.matchup_id != null);
-    let wins = 0;
-    let ties = 0;
-    for (const week of relevant) {
+  const metrics = teams.map((team) => {
+    let totalPoints = 0,
+      wins = 0,
+      losses = 0,
+      ties = 0;
+    let allPlayWins = 0,
+      allPlayLosses = 0,
+      allPlayTies = 0,
+      optimal = 0;
+    for (const week of weeks) {
       const row = week.matchups.find(
         (entry) => entry.roster_id === team.rosterId,
-      );
-      if (!row?.matchup_id) continue;
-      const opponent = week.matchups.find(
+      )!;
+      totalPoints += row.points;
+      // Kept as a history diagnostic; efficiency does not affect power scores.
+      optimal += optimalLineupScore(row, league.roster_positions, players);
+      const others = week.matchups.filter(
         (entry) =>
-          entry.matchup_id === row.matchup_id &&
-          entry.roster_id !== team.rosterId,
+          entry.roster_id !== team.rosterId &&
+          teams.some((team) => team.rosterId === entry.roster_id),
       );
-      if (!opponent) continue;
-      if (row.points > opponent.points) wins += 1;
-      else if (row.points === opponent.points) ties += 1;
+      for (const other of others) {
+        if (row.points > other.points) allPlayWins++;
+        else if (row.points < other.points) allPlayLosses++;
+        else allPlayTies++;
+      }
+      const opponent =
+        row.matchup_id == null
+          ? undefined
+          : others.find((entry) => entry.matchup_id === row.matchup_id);
+      if (opponent) {
+        if (row.points > opponent.points) wins++;
+        else if (row.points < opponent.points) losses++;
+        else ties++;
+      }
     }
-    const totalPoints = games.reduce((sum, row) => sum + row.points, 0);
-    const recentRows = recentWeeks.flatMap((week) =>
-      week.matchups.filter((row) => row.roster_id === team.rosterId),
-    );
-    const optimal = games.reduce(
-      (sum, row) =>
-        sum + optimalLineupScore(row, league.roster_positions, players),
-      0,
-    );
-    winPct.set(
-      team.rosterId,
-      games.length ? (wins + ties * 0.5) / games.length : 0,
-    );
-    ppg.set(team.rosterId, games.length ? totalPoints / games.length : 0);
-    recent.set(
-      team.rosterId,
-      recentRows.length
-        ? recentRows.reduce((sum, row) => sum + row.points, 0) /
-            recentRows.length
-        : 0,
-    );
-    efficiency.set(team.rosterId, optimal ? totalPoints / optimal : 0);
-  }
-
-  const metrics = {
-    winPercentage: percentileScores(winPct),
-    pointsPerGame: percentileScores(ppg),
-    recentForm: percentileScores(recent),
-    lineupEfficiency: percentileScores(efficiency),
-  };
-
-  return teams
-    .map((team) => ({
-      rosterId: team.rosterId,
+    const games = wins + losses + ties;
+    const comparisons = allPlayWins + allPlayLosses + allPlayTies;
+    return {
       team,
-      score:
-        (metrics.winPercentage.get(team.rosterId) ?? 0) * 0.35 +
-        (metrics.pointsPerGame.get(team.rosterId) ?? 0) * 0.3 +
-        (metrics.recentForm.get(team.rosterId) ?? 0) * 0.2 +
-        (metrics.lineupEfficiency.get(team.rosterId) ?? 0) * 0.15,
-      components: {
-        winPercentage: winPct.get(team.rosterId) ?? 0,
-        pointsPerGame: ppg.get(team.rosterId) ?? 0,
-        recentForm: recent.get(team.rosterId) ?? 0,
-        lineupEfficiency: efficiency.get(team.rosterId) ?? 0,
-      },
-    }))
-    .sort((a, b) => b.score - a.score);
+      totalPoints,
+      wins,
+      losses,
+      ties,
+      allPlayWins,
+      allPlayLosses,
+      allPlayTies,
+      winPercentage: games ? (wins + ties * 0.5) / games : 0,
+      allPlayWinPercentage: comparisons
+        ? (allPlayWins + allPlayTies * 0.5) / comparisons
+        : 0,
+      lineupEfficiency: optimal ? totalPoints / optimal : 0,
+    };
+  });
+  const pf = categoryPoints(
+    new Map(metrics.map((m) => [m.team.rosterId, m.totalPoints])),
+  );
+  const bd = categoryPoints(
+    new Map(metrics.map((m) => [m.team.rosterId, m.allPlayWinPercentage])),
+  );
+  const rec = categoryPoints(
+    new Map(metrics.map((m) => [m.team.rosterId, m.winPercentage])),
+  );
+  return metrics
+    .map((m) => {
+      const pointsRankPoints = pf.get(m.team.rosterId)!;
+      const allPlayRankPoints = bd.get(m.team.rosterId)!;
+      const recordRankPoints = rec.get(m.team.rosterId)!;
+      const weightedPoints =
+        2 * pointsRankPoints + 2 * allPlayRankPoints + recordRankPoints;
+      return {
+        rosterId: m.team.rosterId,
+        team: m.team,
+        score: (weightedPoints / (5 * teams.length)) * 100,
+        components: {
+          totalPoints: m.totalPoints,
+          winPercentage: m.winPercentage,
+          wins: m.wins,
+          losses: m.losses,
+          ties: m.ties,
+          allPlayWins: m.allPlayWins,
+          allPlayLosses: m.allPlayLosses,
+          allPlayTies: m.allPlayTies,
+          allPlayWinPercentage: m.allPlayWinPercentage,
+          pointsRankPoints,
+          allPlayRankPoints,
+          recordRankPoints,
+          weightedPoints,
+          lineupEfficiency: m.lineupEfficiency,
+        },
+      };
+    })
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        b.components.totalPoints - a.components.totalPoints ||
+        a.rosterId - b.rosterId,
+    );
 }
 
+// throughWeek is the last completed week, never the live scoring week.
 export function powerRankings(
   teams: Team[],
   weeks: Array<{ week: number; matchups: SleeperMatchup[] }>,
@@ -299,28 +319,34 @@ export function powerRankings(
   league: SleeperLeague,
   players: Record<string, SleeperPlayer>,
 ): PowerRanking[] {
-  if (throughWeek < 1 || !weeks.length) return [];
-  const current = calculateRankingSnapshot(
-    teams,
-    weeks,
-    throughWeek,
-    league,
-    players,
-  );
+  if (throughWeek < 1 || !teams.length) return [];
+  const completed = weeks
+    .filter(
+      (week) =>
+        week.week <= throughWeek &&
+        teams.every((team) =>
+          week.matchups.some(
+            (row) =>
+              row.roster_id === team.rosterId && Number.isFinite(row.points),
+          ),
+        ),
+    )
+    .sort((a, b) => a.week - b.week);
+  if (!completed.length) return [];
+  const current = calculateRankingSnapshot(teams, completed, league, players);
   const previous =
-    throughWeek > 1
-      ? calculateRankingSnapshot(teams, weeks, throughWeek - 1, league, players)
+    completed.length > 1
+      ? calculateRankingSnapshot(teams, completed.slice(0, -1), league, players)
       : [];
   const previousRanks = new Map(
     previous.map((entry, index) => [entry.rosterId, index + 1]),
   );
-
   return current.map((entry, index) => ({
     ...entry,
     rank: index + 1,
     score: Math.round(entry.score * 10) / 10,
     movement: previousRanks.has(entry.rosterId)
-      ? (previousRanks.get(entry.rosterId) ?? index + 1) - (index + 1)
+      ? previousRanks.get(entry.rosterId)! - (index + 1)
       : 0,
   }));
 }

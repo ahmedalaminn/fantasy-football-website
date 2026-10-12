@@ -7,7 +7,6 @@ import {
 } from "@/components/league-ui";
 import { Icon } from "@/components/icon";
 import {
-  Badge,
   Card,
   ErrorState,
   PageHeader,
@@ -15,7 +14,6 @@ import {
   TeamIdentity,
 } from "@/components/ui";
 import { pairMatchups, powerRankings, standings } from "@/lib/calculations";
-import { leagueContent } from "@/lib/content";
 import { getChampions } from "@/lib/history";
 import {
   getAllWeeks,
@@ -28,14 +26,6 @@ import {
 
 export const metadata: Metadata = { title: "League Dashboard" };
 export const dynamic = "force-dynamic";
-const statusLabel: Record<string, string> = {
-  pre_draft: "Preseason",
-  drafting: "Drafting",
-  in_season: "In season",
-  post_season: "Playoffs",
-  complete: "Season complete",
-};
-
 export default async function Home() {
   try {
     const season = await getCurrentSeason();
@@ -72,7 +62,7 @@ export default async function Home() {
     const rankings = powerRankings(
       season.teams,
       allWeeks,
-      week,
+      season.league.status === "complete" ? week : week - 1,
       season.league,
       players,
     );
@@ -81,8 +71,7 @@ export default async function Home() {
       <div className="content-wrap">
         <PageHeader
           eyebrow={`${season.league.season} season · Week ${week}`}
-          title="League command center"
-          description="Scores, movement, and the latest storylines from UD Fantasy Football."
+          title="UD Fantasy Football"
           actions={
             <a
               className="button button-primary"
@@ -96,27 +85,6 @@ export default async function Home() {
         />
         <div className="grid-main reveal-delay">
           <div className="stack">
-            <Card className="hero" accent="violet">
-              <div className="hero-copy">
-                <Badge
-                  tone={
-                    season.league.status === "in_season" ? "good" : "violet"
-                  }
-                >
-                  {statusLabel[season.league.status] || season.league.status}
-                </Badge>
-                <h2>{season.league.name}</h2>
-                <p>{leagueContent.introduction}</p>
-                <div className="hero-meta">
-                  <Badge>{season.league.total_rosters} teams</Badge>
-                  <Badge>
-                    {season.league.settings.playoff_teams ?? 6} playoff spots
-                  </Badge>
-                  <Badge tone="aqua">Season {season.league.season}</Badge>
-                </div>
-              </div>
-              <div className="hero-orbit" aria-hidden="true" />
-            </Card>
             <div>
               <SectionHeader
                 kicker={`Week ${week}`}
@@ -194,7 +162,7 @@ export default async function Home() {
                     <h3>Rankings start after Week 1</h3>
                     <p>
                       Once a matchup is complete, the formula will combine
-                      record, scoring, recent form, and lineup efficiency.
+                      points scored, all-play record, and actual record.
                     </p>
                   </div>
                 )}

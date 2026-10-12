@@ -15,7 +15,6 @@ import type {
   SleeperTransaction,
   SleeperUser,
   Team,
-  TradedPick,
 } from "./types";
 
 const API_ROOT = "https://api.sleeper.app/v1";
@@ -95,11 +94,7 @@ export const getLosersBracket = cache((leagueId: string) =>
 );
 
 export const getDrafts = cache((leagueId: string) =>
-  sleeperFetch<SleeperDraft[]>(`/league/${leagueId}/drafts`, HISTORY_TTL),
-);
-
-export const getDraft = cache((draftId: string) =>
-  sleeperFetch<SleeperDraft>(`/draft/${draftId}`, ACTIVE_TTL),
+  sleeperFetch<SleeperDraft[]>(`/league/${leagueId}/drafts`, ACTIVE_TTL),
 );
 
 export const getDraftPicks = cache((draftId: string) =>
@@ -108,10 +103,6 @@ export const getDraftPicks = cache((draftId: string) =>
 
 export const getLiveDraftPicks = (draftId: string) =>
   sleeperFetch<SleeperDraftPick[]>(`/draft/${draftId}/picks`, 2);
-
-export const getTradedPicks = cache((draftId: string) =>
-  sleeperFetch<TradedPick[]>(`/draft/${draftId}/traded_picks`, HISTORY_TTL),
-);
 
 export const getNflState = cache(() =>
   sleeperFetch<NflState>("/state/nfl", ACTIVE_TTL),
@@ -162,9 +153,7 @@ export function avatarUrl(avatar: string | null | undefined) {
   return avatar ? `https://sleepercdn.com/avatars/thumbs/${avatar}` : null;
 }
 
-export function playerImageUrl(playerId: string) {
-  return `https://sleepercdn.com/content/nfl/players/thumb/${playerId}.jpg`;
-}
+export { playerImageUrl } from "./player-image";
 
 export function buildTeams(
   users: SleeperUser[],

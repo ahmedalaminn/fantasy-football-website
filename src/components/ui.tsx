@@ -30,17 +30,22 @@ export function SectionHeader({
   kicker,
   href,
   action = "View all",
+  info,
 }: {
   title: string;
   kicker?: string;
   href?: string;
   action?: string;
+  info?: React.ReactNode;
 }) {
   return (
     <div className="section-header">
       <div>
         {kicker && <span className="eyebrow">{kicker}</span>}
-        <h2>{title}</h2>
+        <h2 className={info ? "section-title-with-info" : undefined}>
+          {title}
+          {info}
+        </h2>
       </div>
       {href && (
         <Link href={href} className="text-link">

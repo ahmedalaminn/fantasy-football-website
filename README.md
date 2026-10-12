@@ -1,19 +1,14 @@
 # UD Fantasy Football
 
-A modern, public league hub powered directly by the Sleeper API. It includes current matchups, standings, power rankings, transactions, team pages, historical drafts, records, rivalries, and a Hall of Champions.
+A public league hub powered by the Sleeper API, with current matchups, standings, transactions, team pages, historical drafts, records, rivalries, and a Hall of Champions.
 
-The AI Assistant adds manager-aware live and mock draft help. Python owns the
-projection training pipeline in `ml/`; the Next.js app consumes its versioned
-artifact and combines it with live Sleeper draft state. See `ml/README.md` for
-model setup and data provenance.
+## Features
 
-For the complete architecture, model comparison, validation metrics, feature
-contract, and current limitations, see [`docs/ml-pipeline.md`](docs/ml-pipeline.md).
-
-The projection feature contract is intentionally layered: direct fantasy
-scoring fields are the core model, Sleeper supplies league and live-draft
-context, and validated nflverse team/coaching/schedule signals are supplemental.
-Advanced metrics remain research-only until season-forward tests earn their use.
+- Live matchup scores and completed-week results.
+- Power rankings combining points scored, all-play record, and actual record with 40% / 40% / 20% weights. Rankings use completed weeks and scale category points to league size.
+- Activity cards showing managers, players, trades, draft picks, and FAAB moves.
+- Best ball draft reports using the configured league's actual Sleeper picks, with color-coded value ratings against a frozen Sleeper ADP benchmark, scoring outperformers and underperformers, and a drafted/undrafted filter.
+- Light mode by default, with a saved light/dark toggle on desktop and mobile.
 
 ## Local development
 
@@ -21,32 +16,32 @@ Set the newest Sleeper league ID in `.env.local`:
 
 ```bash
 LEAGUE_ID=your_newest_sleeper_league_id
-# Optional: enables Gemini-first news extraction. Without it, rules are used.
-GEMINI_API_KEY=your_google_ai_studio_key
-# Optional override; defaults to the current free-tier Flash-Lite model.
-GEMINI_NEWS_MODEL=gemini-3.5-flash-lite
-# Optional override for the initially selected manager.
-ASSISTANT_DEFAULT_USER_ID=your_sleeper_user_id
 ```
 
-The app follows Sleeper's `previous_league_id` links automatically to build league history. Then run:
+The app follows Sleeper's `previous_league_id` links to build league history.
 
 ```bash
 npm install
 npm run dev
 ```
 
-Human-authored copy, manager profiles, champion stories, rules, and resource links live in `src/lib/content.ts`. Empty optional profile fields are hidden automatically.
+League copy, manager profiles, champion stories, rules, and resource links live in `src/lib/content.ts`. Empty optional profile fields are hidden automatically.
 
-## Draft and news assistant
+## Best ball draft report
 
-The `/assistant` workspace supports live Sleeper polling, mock drafting,
-manager selection, Monte Carlo next-pick availability, roster/scoring-aware
-recommendations, risk styles, player comparisons, and optional ADP CSV files
-with `sleeper_id,rank` columns.
+Open `/best-ball` to review the configured league's latest Sleeper draft in a round-by-manager board. Each pick shows only its rating color, player photo, and name. Hover or focus a pick for a preview, or select it to open full details. The completed draft has no automatic refresh. The page uses a frozen **Sleeper PPR ADP snapshot captured October 12, 2026**, archived in `src/data/sleeper-adp-2026.json`. Source: https://api.sleeper.com/projections/nfl/2026?season_type=regular. The snapshot contains 2,440 QB/RB/WR/TE/K/DEF entries with finite ADP greater than zero and below the 999 placeholder. All 170 original draft picks have ADP coverage. The endpoint's historical cutoff is unverified, so the capture date is displayed separately from the August 30 draft date. The saved ADP never refreshes during the season. Other seasons remain unrated. ESPN and LineupBeat datasets are no longer used.
 
-The News Terminal accepts public HTTPS URLs or pasted public text. Successful
-Gemini extractions use the Next.js data cache for 30 days. Missing credentials,
-quota errors, timeouts, and invalid model output fall back to deterministic
-rules for five minutes. Only high-confidence injury, inactive, or suspension
-events can trigger bounded numeric changes; softer reports remain explanatory.
+Board colors reflect current-season positional scoring versus frozen Sleeper ADP order: green for outperformance, red for underperformance, yellow for unchanged rank, and gray for missing rankings or scoring. These ranks match the performance tabs. Pick details show both a current-season state (rank movement, expected/current positional ranks, and fantasy points) and a separate draft-value state (expected overall pick (ADP), actual pick, and steal / just right / reach rating). Draft-value ratings compare actual pick number with frozen Sleeper ADP, with a threshold of 10% of ADP and a minimum of three picks. All summary values include pick, rank, or fantasy-point units.
+
+The outperformers and underperformers tabs compare positional scoring rank with positional frozen Sleeper ADP order among players with league matchup scoring data, using completed weeks only. Outperformers have positive gains and sort by the largest gain; underperformers have negative gains and sort by the largest shortfall. Both tabs share an All players / Undrafted only / Drafted only filter. Draft status means selected in the original draft, regardless of later waiver moves. Filtering preserves the full comparison ranks.
+
+## Validation
+
+```bash
+npm test
+npm run lint
+npm run typecheck
+npm run build
+```
+
+Rating explanations use the shared `InfoPopover` component (`src/components/info-popover.tsx`): a hover/focus/click info icon with titled bullet groups, source links, viewport bounds, and a close button. Best ball and standings use the same pattern.

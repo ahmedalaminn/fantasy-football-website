@@ -1,7 +1,7 @@
+import { InfoPopover } from "@/components/info-popover";
 import type { Metadata } from "next";
 import { StandingsTable } from "@/components/league-ui";
 import {
-  Badge,
   Card,
   ErrorState,
   PageHeader,
@@ -42,7 +42,7 @@ export default async function StandingsPage() {
     const power = powerRankings(
       season.teams,
       weeks,
-      week,
+      season.league.status === "complete" ? week : week - 1,
       season.league,
       players,
     );
@@ -65,18 +65,45 @@ export default async function StandingsPage() {
           </div>
           <div>
             <SectionHeader
-              kicker={`Through Week ${week}`}
+              kicker={
+                season.league.status === "complete"
+                  ? `Through Week ${week}`
+                  : week > 1
+                    ? `Through Week ${week - 1} · Completed weeks`
+                    : "Awaiting Week 1 results"
+              }
               title="Power rankings"
+              info={
+                <InfoPopover
+                  title="Power ranking formula"
+                  sections={[
+                    {
+                      title: "Three factors",
+                      items: [
+                        "40% points scored (PF)",
+                        "40% all-play win percentage",
+                        "20% head-to-head win percentage",
+                      ],
+                    },
+                    {
+                      title: "Score · 0–100 scale",
+                      items: [
+                        `Each category gives ${season.teams.length} rank points for first, down to 1 for last. Ties average their places.`,
+                        `(2 × PF rank points + 2 × all-play rank points + record rank points) ÷ ${5 * season.teams.length} × 100.`,
+                      ],
+                    },
+                    {
+                      title: "How results count",
+                      items: [
+                        "Completed weeks only; scoring on byes counts. All-play compares your score with every other team; ties count as half a win.",
+                        "Movement compares the previous completed week. Equal scores sort by PF, then roster ID.",
+                      ],
+                    },
+                  ]}
+                />
+              }
             />
             <Card className="panel-pad">
-              <div className="formula">
-                <Badge tone="violet">Transparent formula</Badge>
-                <p>
-                  <strong>35%</strong> win percentage · <strong>30%</strong>{" "}
-                  points per game · <strong>20%</strong> last-three scoring ·{" "}
-                  <strong>15%</strong> lineup efficiency
-                </p>
-              </div>
               {power.length ? (
                 <div className="power-grid">
                   {power.map((entry) => (
@@ -95,17 +122,17 @@ export default async function StandingsPage() {
                           value={`${Math.round(entry.components.winPercentage * 100)}%`}
                         />
                         <Stat
-                          label="PPG"
-                          value={entry.components.pointsPerGame.toFixed(1)}
+                          label="Points scored"
+                          value={entry.components.totalPoints.toFixed(1)}
                           tone="aqua"
                         />
                         <Stat
-                          label="Last 3"
-                          value={entry.components.recentForm.toFixed(1)}
+                          label="All-play"
+                          value={`${entry.components.allPlayWins}-${entry.components.allPlayLosses}${entry.components.allPlayTies ? `-${entry.components.allPlayTies}` : ""}`}
                         />
                         <Stat
-                          label="Efficiency"
-                          value={`${Math.round(entry.components.lineupEfficiency * 100)}%`}
+                          label="All-play win pct"
+                          value={`${Math.round(entry.components.allPlayWinPercentage * 100)}%`}
                           tone="violet"
                         />
                       </div>

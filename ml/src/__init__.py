@@ -1,2 +1,0 @@
-"""UD Fantasy projection pipeline."""
-

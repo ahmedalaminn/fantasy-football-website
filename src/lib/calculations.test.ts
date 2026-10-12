@@ -81,6 +81,23 @@ describe("league calculations", () => {
     expect(result[0].status).toBe("final");
   });
 
+  it("keeps partial scores live, including negative scores", () => {
+    for (const score of [20, -2]) {
+      expect(
+        pairMatchups(
+          [matchup(1, score), matchup(2, 0)],
+          [team(1, 0, 0), team(2, 0, 0)],
+        )[0].status,
+      ).toBe("live");
+    }
+    expect(
+      pairMatchups(
+        [matchup(1, 0), matchup(2, 0)],
+        [team(1, 0, 0), team(2, 0, 0)],
+      )[0].status,
+    ).toBe("upcoming");
+  });
+
   it("derives champion, runner-up, and third place from bracket placements", () => {
     const teams = [team(1, 10, 1500), team(2, 8, 1400)];
     const result = deriveChampion(
@@ -134,13 +151,102 @@ describe("league calculations", () => {
     );
   });
 
-  it("uses all four power-ranking inputs and ranks the stronger team first", () => {
+  it("uses the three power-ranking inputs and ranks the stronger team first", () => {
     const teams = [team(1, 1, 120), team(2, 0, 80)];
     const players: Record<string, SleeperPlayer> = {};
     const weeks = [{ week: 1, matchups: [matchup(1, 120), matchup(2, 80)] }];
     expect(powerRankings(teams, weeks, 1, league(), players)[0].rosterId).toBe(
       1,
     );
+  });
+
+  it("rewards weekly strength over a lucky head-to-head win", () => {
+    const teams = [1, 2, 3, 4].map((id) => team(id, 0, 0));
+    const rows = [
+      matchup(1, 100),
+      matchup(2, 110),
+      { ...matchup(3, 20), matchup_id: 2 },
+      { ...matchup(4, 10), matchup_id: 2 },
+    ];
+    const result = powerRankings(
+      teams,
+      [{ week: 1, matchups: rows }],
+      1,
+      league(),
+      {},
+    );
+    const unlucky = result.find((r) => r.rosterId === 1)!;
+    const lucky = result.find((r) => r.rosterId === 3)!;
+    expect(unlucky.components.winPercentage).toBe(0);
+    expect(lucky.components.winPercentage).toBe(1);
+    expect(unlucky.score).toBe(67.5);
+    expect(lucky.score).toBe(57.5);
+    expect(unlucky.components.allPlayWins).toBe(2);
+    expect(unlucky.rank).toBeLessThan(lucky.rank);
+  });
+
+  it("splits tied category points and counts tied games as half wins", () => {
+    const result = powerRankings(
+      [team(1, 0, 0), team(2, 0, 0)],
+      [{ week: 1, matchups: [matchup(1, 50), matchup(2, 50)] }],
+      1,
+      league(),
+      {},
+    );
+    for (const row of result) {
+      expect(row.components.pointsRankPoints).toBe(1.5);
+      expect(row.components.allPlayRankPoints).toBe(1.5);
+      expect(row.components.recordRankPoints).toBe(1.5);
+      expect(row.components.winPercentage).toBe(0.5);
+      expect(row.components.allPlayWinPercentage).toBe(0.5);
+      expect(row.components.allPlayTies).toBe(1);
+      expect(row.score).toBe(75);
+    }
+  });
+
+  it("excludes live and incomplete data and measures movement from the last snapshot", () => {
+    const teams = [team(1, 0, 0), team(2, 0, 0)];
+    const weeks = [
+      { week: 2, matchups: [matchup(1, 0), matchup(2, 300)] },
+      { week: 1, matchups: [matchup(1, 100), matchup(2, 10)] },
+    ];
+    expect(powerRankings(teams, weeks, 0, league(), {})).toEqual([]);
+    expect(powerRankings(teams, weeks, 1, league(), {})[0].rosterId).toBe(1);
+    const result = powerRankings(teams, weeks, 2, league(), {});
+    expect(result[0].rosterId).toBe(2);
+    expect(result[0].movement).toBe(1);
+    expect(result[1].movement).toBe(-1);
+    expect(
+      powerRankings(
+        teams,
+        [{ week: 1, matchups: [matchup(1, 100)] }],
+        1,
+        league(),
+        {},
+      ),
+    ).toEqual([]);
+  });
+
+  it("counts bye scoring for PF and all-play without inventing a head-to-head game", () => {
+    const result = powerRankings(
+      [team(1, 0, 0), team(2, 0, 0)],
+      [
+        {
+          week: 1,
+          matchups: [
+            { ...matchup(1, 60), matchup_id: null },
+            { ...matchup(2, 40), matchup_id: null },
+          ],
+        },
+      ],
+      1,
+      league(),
+      {},
+    );
+    expect(result[0].components.totalPoints).toBe(60);
+    expect(result[0].components.allPlayWins).toBe(1);
+    expect(result[0].components.wins).toBe(0);
+    expect(result[0].components.losses).toBe(0);
   });
 
   it("stops historical traversal when a season link cycles", async () => {

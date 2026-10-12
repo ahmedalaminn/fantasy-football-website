@@ -177,8 +177,18 @@ export interface PowerRanking {
   movement: number;
   components: {
     winPercentage: number;
-    pointsPerGame: number;
-    recentForm: number;
+    totalPoints: number;
+    wins: number;
+    losses: number;
+    ties: number;
+    allPlayWins: number;
+    allPlayLosses: number;
+    allPlayTies: number;
+    allPlayWinPercentage: number;
+    pointsRankPoints: number;
+    allPlayRankPoints: number;
+    recordRankPoints: number;
+    weightedPoints: number;
     lineupEfficiency: number;
   };
 }
