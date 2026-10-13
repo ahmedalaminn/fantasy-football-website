@@ -179,7 +179,7 @@ export default async function Home() {
                   transactions={transactions}
                   teams={season.teams}
                   players={players}
-                  limit={2}
+                  limit={1}
                 />
               </Card>
             </div>

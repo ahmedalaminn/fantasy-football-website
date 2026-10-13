@@ -1,22 +1,24 @@
 import type { SleeperPlayer } from "@/lib/types";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { PlayerRow } from "@/components/league-ui";
+import { MatchupCard, type MatchupSide } from "@/components/matchup-card";
 import {
-  Avatar,
   Badge,
   Card,
   EmptyState,
   ErrorState,
   PageHeader,
 } from "@/components/ui";
-import { pairMatchups, formatPoints } from "@/lib/calculations";
+import { fantasyPoints } from "@/lib/season-scoring";
+import { pairMatchups } from "@/lib/calculations";
 import {
   getCurrentSeason,
   getMatchups,
   getNflState,
   getPlayers,
   getWeeklyPlayerStats,
+  getWeeklyProjections,
+  getNflSchedule,
 } from "@/lib/sleeper";
 
 export const metadata: Metadata = { title: "Matchups" };
@@ -52,10 +54,14 @@ export default async function MatchupsPage({
       ),
       getPlayers().catch(() => ({}) as Record<string, SleeperPlayer>),
     ]);
-    const participation = await getWeeklyPlayerStats(
-      season.league.season,
-      week,
-    ).catch(() => null);
+    const [participation, projections, schedule] = await Promise.all([
+      getWeeklyPlayerStats(season.league.season, week).catch(() => null),
+      getWeeklyProjections(season.league.season, week).catch(() => null),
+      getNflSchedule(season.league.season).catch(() => null),
+    ]);
+    const projectionById = new Map(projections?.map((row) => [row.player_id, row]));
+    const statsById = new Map(participation?.map((row) => [row.player_id, row]));
+    const games = schedule?.filter((game) => game.week === week);
     const played = new Set(
       participation
         ?.filter((row) => row.stats.gp > 0)
@@ -68,7 +74,7 @@ export default async function MatchupsPage({
     );
     const playoffStart = season.league.settings.playoff_week_start ?? 15;
     return (
-      <div className="content-wrap">
+      <div className="content-wrap matchups-page">
         <PageHeader
           eyebrow={`${season.league.season} season`}
           title="Matchups"
@@ -101,83 +107,61 @@ export default async function MatchupsPage({
             {pairs.map((pair) => {
               const [left, right] = pair.teams;
               if (!left) return null;
-              const leftWin =
-                right && left.matchup.points > right.matchup.points;
-              const rightWin =
-                right && right.matchup.points > left.matchup.points;
+              const side = (entry: typeof left): MatchupSide => {
+                const player = (id: string) => {
+                  const projected = projectionById.get(id);
+                  const team = statsById.get(id)?.team || projected?.team || players[id]?.team || "FA";
+                  const game = games?.find((g) => g.home === team || g.away === team);
+                  const bye = team !== "FA" && games != null && games.length > 0 && !game;
+                  const opponent = game
+                    ? `${game.home === team ? "vs" : "@"} ${game.home === team ? game.away : game.home}`
+                    : projected?.opponent ? `vs ${projected.opponent}` : undefined;
+                  const points = entry.matchup.players_points?.[id];
+                  return {
+                    id,
+                    name: players[id]?.full_name ||
+                      [players[id]?.first_name, players[id]?.last_name].filter(Boolean).join(" ") ||
+                      (id === "0" ? "Empty slot" : `Player ${id}`),
+                    position: players[id]?.position || "",
+                    team,
+                    opponent,
+                    bye,
+                    projected: !bye && projected && projected.stats.gp > 0
+                      ? fantasyPoints(projected.stats, season.league.scoring_settings)
+                      : undefined,
+                    points,
+                    status: bye ? "Bye week"
+                      : participation && !played.has(id)
+                        ? game?.status === "complete" || week < current || season.league.status === "complete"
+                          ? "Did not play"
+                          : "Not played yet"
+                        : points == null ? "No data" : undefined,
+                  };
+                };
+                const starters = entry.matchup.starters || [];
+                return {
+                  name: entry.team.teamName,
+                  manager: entry.team.managerName,
+                  avatar: entry.team.avatarUrl,
+                  points: entry.matchup.points,
+                  starters: starters.map(player),
+                  bench: (entry.matchup.players || [])
+                    .filter((id) => !starters.includes(id))
+                    .map(player),
+                };
+              };
               return (
-                <Card className="game-card" key={pair.matchupId}>
-                  <div id={`matchup-${pair.matchupId}`} className="game-head">
-                    <Badge tone={pair.status === "final" ? "good" : "neutral"}>
-                      {pair.status}
-                    </Badge>
-                    <span className="eyebrow">Matchup {pair.matchupId}</span>
-                  </div>
-                  <div className="game-teams">
-                    <div className={`game-team ${leftWin ? "winner" : ""}`}>
-                      <Avatar
-                        src={left.team.avatarUrl}
-                        name={left.team.managerName}
-                        size="lg"
-                      />
-                      <strong>{left.team.teamName}</strong>
-                      <small>{left.team.managerName}</small>
-                      <span className="game-team-score">
-                        {formatPoints(left.matchup.points)}
-                      </span>
-                    </div>
-                    <span className="vs">VS</span>
-                    {right ? (
-                      <div className={`game-team ${rightWin ? "winner" : ""}`}>
-                        <Avatar
-                          src={right.team.avatarUrl}
-                          name={right.team.managerName}
-                          size="lg"
-                        />
-                        <strong>{right.team.teamName}</strong>
-                        <small>{right.team.managerName}</small>
-                        <span className="game-team-score">
-                          {formatPoints(right.matchup.points)}
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="game-team">
-                        <strong>Bye week</strong>
-                      </div>
-                    )}
-                  </div>
-                  {right && (
-                    <details className="lineup">
-                      <summary>View scoring breakdown</summary>
-                      <div className="two-col">
-                        {[left, right].map((entry) => (
-                          <div key={entry.team.rosterId}>
-                            {(entry.matchup.starters ?? []).map((id) => (
-                              <PlayerRow
-                                key={id}
-                                playerId={id}
-                                players={players}
-                                points={entry.matchup.players_points?.[id]}
-                                playStatus={
-                                  participation && !played.has(id)
-                                    ? week >= current
-                                      ? "Has not played yet"
-                                      : played.has(players[id]?.team ?? "")
-                                        ? "Did not play"
-                                        : "Bye / no game"
-                                    : entry.matchup.players_points?.[id] == null
-                                      ? "No scoring data"
-                                      : undefined
-                                }
-                                starter
-                              />
-                            ))}
-                          </div>
-                        ))}
-                      </div>
-                    </details>
+                <MatchupCard
+                  key={pair.matchupId}
+                  matchupId={pair.matchupId}
+                  week={week}
+                  status={pair.status}
+                  left={side(left)}
+                  right={right ? side(right) : undefined}
+                  slots={season.league.roster_positions.filter(
+                    (slot) => !["BN", "IR"].includes(slot),
                   )}
-                </Card>
+                />
               );
             })}
           </div>

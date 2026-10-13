@@ -134,8 +134,10 @@ export function ActivityList({
   teams,
   players,
   limit,
+  pageSize = 2,
 }: {
   transactions: SleeperTransaction[];
+  pageSize?: number;
   teams: Team[];
   players: Record<string, SleeperPlayer>;
   limit?: number;
@@ -157,7 +159,7 @@ export function ActivityList({
     <PagedItems
       className="activity-list"
       label="Activity"
-      pageSize={limit ?? 5}
+      pageSize={limit ?? pageSize}
       items={rows.map((transaction) => {
         const involved = transaction.roster_ids
           .map((id) => teamMap.get(id))

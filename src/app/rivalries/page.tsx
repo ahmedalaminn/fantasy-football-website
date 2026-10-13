@@ -63,11 +63,19 @@ export default async function RivalriesPage({
       }),
     );
     const ids = [...people.keys()];
-    const one = people.has(query.p1 || "") ? query.p1! : ids[0];
+    const preferredOne = ids.find(
+      (id) => people.get(id)?.toLowerCase() === "ahmedalamin",
+    );
+    const preferredTwo = ids.find(
+      (id) => people.get(id)?.toLowerCase() === "snsadat04",
+    );
+    const one = people.has(query.p1 || "") ? query.p1! : preferredOne || ids[0];
     const two =
       people.has(query.p2 || "") && query.p2 !== one
         ? query.p2!
-        : ids.find((id) => id !== one) || ids[0];
+        : (preferredTwo !== one ? preferredTwo : undefined) ||
+          ids.find((id) => id !== one) ||
+          ids[0];
     const seasons = await loadSeasonWeeks(bundles);
     let wins = 0;
     let losses = 0;

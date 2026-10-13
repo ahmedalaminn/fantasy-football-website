@@ -277,3 +277,34 @@ export const getWeeklyPlayerStats = cache(
     return response.json();
   },
 );
+
+export interface WeeklyProjection extends WeeklyPlayerStat {
+  opponent?: string;
+}
+export interface NflGame {
+  home: string;
+  away: string;
+  week: number;
+  status: string;
+  date: string;
+}
+export const getWeeklyProjections = cache(
+  async (season: string, week: number): Promise<WeeklyProjection[]> => {
+    const response = await fetch(
+      `https://api.sleeper.com/projections/nfl/${season}/${week}?season_type=regular`,
+      { next: { revalidate: ACTIVE_TTL } },
+    );
+    if (!response.ok) throw new Error("Sleeper projections unavailable");
+    return response.json();
+  },
+);
+export const getNflSchedule = cache(
+  async (season: string): Promise<NflGame[]> => {
+    const response = await fetch(
+      `https://api.sleeper.com/schedule/nfl/regular/${season}`,
+      { next: { revalidate: ACTIVE_TTL } },
+    );
+    if (!response.ok) throw new Error("NFL schedule unavailable");
+    return response.json();
+  },
+);

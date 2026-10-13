@@ -55,7 +55,7 @@ export default async function ActivityPage({
         ? successful
         : successful.filter((item) => item.type === type);
     return (
-      <div className="content-wrap">
+      <div className="content-wrap activity-page">
         <PageHeader
           eyebrow={`${season.league.season} transaction wire`}
           title="League activity"
@@ -100,6 +100,7 @@ export default async function ActivityPage({
         <Card>
           <ActivityList
             key={`${week}-${type}`}
+            pageSize={2}
             transactions={filtered.sort(
               (a, b) => b.status_updated - a.status_updated,
             )}
