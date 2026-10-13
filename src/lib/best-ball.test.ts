@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   draftDay,
   performanceRankings,
+  perGameRankings,
   performanceView,
   pickValue,
   seasonGrade,
@@ -111,5 +112,52 @@ describe("best ball preseason benchmark", () => {
     expect(seasonGrade(0)).toBe("fair");
     expect(seasonGrade(undefined)).toBe("unknown");
     expect(seasonGrade(NaN)).toBe("unknown");
+  });
+});
+
+describe("per-game positional ranks", () => {
+  const adp = [
+    { playerId: "injured", name: "Injured", position: "WR", adp: 1 },
+    { playerId: "healthy", name: "Healthy", position: "WR", adp: 2 },
+    { playerId: "qb", name: "Quarterback", position: "QB", adp: 3 },
+    { playerId: "dnp", name: "Did not play", position: "WR", adp: 4 },
+    { playerId: "unknown", name: "Unknown", position: "WR", adp: 5 },
+  ];
+  it("ranks an injured player's points per appearance instead of dividing by elapsed weeks", () => {
+    const scores = { injured: 20, healthy: 60, qb: 100, dnp: 0, unknown: 50 };
+    const production = {
+      injured: { played: 1, available: true },
+      healthy: { played: 4, available: true },
+      qb: { played: 4, available: true },
+      dnp: { played: 0, available: true },
+      unknown: { played: 2, available: false },
+    };
+    expect(
+      performanceRankings(adp, scores).find((row) => row.playerId === "injured")
+        ?.scoringRank,
+    ).toBe(3);
+    const rows = perGameRankings(adp, scores, production);
+    expect(rows.find((row) => row.playerId === "injured")).toMatchObject({
+      points: 20,
+      scoringRank: 1,
+    });
+    expect(rows.find((row) => row.playerId === "healthy")).toMatchObject({
+      points: 15,
+      scoringRank: 2,
+    });
+    expect(rows.find((row) => row.playerId === "qb")?.scoringRank).toBe(1);
+    expect(rows.map((row) => row.playerId)).not.toContain("dnp");
+    expect(rows.map((row) => row.playerId)).not.toContain("unknown");
+  });
+  it("shares ranks for equal averages and keeps zero-point appearances", () => {
+    const rows = perGameRankings(
+      adp,
+      { injured: 0, healthy: 0 },
+      {
+        injured: { played: 1, available: true },
+        healthy: { played: 4, available: true },
+      },
+    );
+    expect(rows.map((row) => row.scoringRank)).toEqual([1, 1]);
   });
 });

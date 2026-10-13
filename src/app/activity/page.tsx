@@ -31,7 +31,9 @@ export default async function ActivityPage({
     const query = await searchParams;
     const parsed = Number(query.week);
     const week =
-      Number.isFinite(parsed) && parsed >= 1 && parsed <= 18 ? parsed : current;
+      Number.isInteger(parsed) && parsed >= 1 && parsed <= current
+        ? parsed
+        : current;
     const type = ["all", "trade", "waiver", "free_agent"].includes(
       query.type ?? "",
     )
@@ -45,10 +47,13 @@ export default async function ActivityPage({
       ),
       getPlayers().catch(() => ({})),
     ]);
+    const successful = transactions.filter(
+      (item) => item.type !== "waiver" || item.status === "complete",
+    );
     const filtered =
       type === "all"
-        ? transactions
-        : transactions.filter((item) => item.type === type);
+        ? successful
+        : successful.filter((item) => item.type === type);
     return (
       <div className="content-wrap">
         <PageHeader
@@ -58,7 +63,7 @@ export default async function ActivityPage({
         />
         <div className="filter-bar">
           <div className="week-nav">
-            {Array.from({ length: 18 }, (_, i) => i + 1).map((number) => (
+            {Array.from({ length: current }, (_, i) => i + 1).map((number) => (
               <Link
                 key={number}
                 className={week === number ? "active" : ""}
@@ -94,6 +99,7 @@ export default async function ActivityPage({
         </div>
         <Card>
           <ActivityList
+            key={`${week}-${type}`}
             transactions={filtered.sort(
               (a, b) => b.status_updated - a.status_updated,
             )}

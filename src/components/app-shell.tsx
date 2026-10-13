@@ -13,10 +13,10 @@ const primaryNav: Array<{ href: string; label: string; icon: IconName }> = [
   { href: "/teams", label: "Teams", icon: "teams" },
 ];
 const toolsNav: Array<{ href: string; label: string; icon: IconName }> = [
-  { href: "/best-ball", label: "Best ball", icon: "spark" },
   { href: "/rivalries", label: "Rivalries", icon: "teams" },
 ];
 const archiveNav: Array<{ href: string; label: string; icon: IconName }> = [
+  { href: "/drafts", label: "Drafts", icon: "spark" },
   { href: "/history", label: "History", icon: "history" },
   { href: "/league", label: "League", icon: "league" },
 ];

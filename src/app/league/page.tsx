@@ -1,3 +1,4 @@
+import { PagedItems } from "@/components/paged-items";
 import type { Metadata } from "next";
 import { Badge, Card, ErrorState, PageHeader, Tabs } from "@/components/ui";
 import { getCurrentSeason } from "@/lib/sleeper";
@@ -21,7 +22,7 @@ const labels: Record<string, string> = {
   max_keepers: "Keepers",
   draft_rounds: "Draft rounds",
   type: "League type",
-  best_ball: "Best ball",
+  best_ball: "Best Ball",
   last_scored_leg: "Last scored week",
   leg: "Current week",
   num_teams: "Teams",
@@ -101,8 +102,11 @@ export default async function LeaguePage({
                   <h2>General settings</h2>
                 </div>
               </div>
-              <div className="settings-grid">
-                {Object.entries(season.league.settings)
+              <PagedItems
+                className="settings-grid"
+                label="League settings"
+                pageSize={12}
+                items={Object.entries(season.league.settings)
                   .sort(([a], [b]) => a.localeCompare(b))
                   .map(([key, value]) => (
                     <div className="setting-item" key={key}>
@@ -110,7 +114,7 @@ export default async function LeaguePage({
                       <strong>{String(value)}</strong>
                     </div>
                   ))}
-              </div>
+              />
             </Card>
           </div>
         )}
@@ -123,8 +127,11 @@ export default async function LeaguePage({
               </div>
               <Badge tone="aqua">From Sleeper</Badge>
             </div>
-            <div className="settings-grid">
-              {Object.entries(season.league.scoring_settings)
+            <PagedItems
+              className="settings-grid"
+              label="Scoring rules"
+              pageSize={18}
+              items={Object.entries(season.league.scoring_settings)
                 .sort(([a], [b]) => a.localeCompare(b))
                 .map(([key, value]) => (
                   <div className="setting-item" key={key}>
@@ -135,7 +142,7 @@ export default async function LeaguePage({
                     </strong>
                   </div>
                 ))}
-            </div>
+            />
           </Card>
         )}
         {active === "rules" && (

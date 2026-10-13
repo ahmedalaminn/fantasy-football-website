@@ -78,14 +78,13 @@ export default async function TeamPage({
       entry.roster_ids.includes(team.rosterId),
     );
     return (
-      <div className="content-wrap">
+      <div className="content-wrap team-profile">
         <Link href="/teams" className="back-link">
           ‹ All teams
         </Link>
         <PageHeader
           eyebrow={`${season.league.season} franchise`}
           title={team.teamName}
-          description={`Managed by ${team.managerName}`}
         />
         <div className="profile-hero">
           <Card className="profile-card" accent="violet">
@@ -98,10 +97,7 @@ export default async function TeamPage({
             <div>
               <Badge tone="violet">Manager profile</Badge>
               <h2>{team.managerName}</h2>
-              <p>
-                {profile?.bio ||
-                  "League member profile. Add a custom bio in the league content file."}
-              </p>
+              {profile?.bio && <p>{profile.bio}</p>}
               {profile && (
                 <div className="profile-tags">
                   {profile.favoriteTeam && (
@@ -198,7 +194,7 @@ export default async function TeamPage({
               <SectionHeader kicker="Latest moves" title="Recent activity" />
               <Card>
                 <ActivityList
-                  transactions={recent.slice(0, 5)}
+                  transactions={recent.slice(0, 2)}
                   teams={season.teams}
                   players={players}
                 />
@@ -210,7 +206,7 @@ export default async function TeamPage({
     );
   } catch (error) {
     return (
-      <div className="content-wrap">
+      <div className="content-wrap team-profile">
         <PageHeader title="Team profile" />
         <Card>
           <ErrorState

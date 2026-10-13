@@ -1,3 +1,4 @@
+import { PagedItems } from "./paged-items";
 import Image from "next/image";
 import Link from "next/link";
 import { formatPoints } from "@/lib/calculations";
@@ -63,11 +64,13 @@ export function MatchupList({
 export function StandingsTable({
   rows,
   compact = false,
+  limit,
 }: {
   rows: Standing[];
   compact?: boolean;
+  limit?: number;
 }) {
-  const visible = compact ? rows.slice(0, 6) : rows;
+  const visible = compact ? rows.slice(0, limit ?? 6) : rows;
   return (
     <div className="data-table-wrap">
       <table className="data-table">
@@ -138,7 +141,10 @@ export function ActivityList({
   limit?: number;
 }) {
   const teamMap = new Map(teams.map((team) => [team.rosterId, team]));
-  const rows = limit ? transactions.slice(0, limit) : transactions;
+  const successful = transactions.filter(
+    (item) => item.type !== "waiver" || item.status === "complete",
+  );
+  const rows = limit ? successful.slice(0, limit) : successful;
   if (!rows.length)
     return (
       <EmptyState
@@ -148,8 +154,11 @@ export function ActivityList({
       />
     );
   return (
-    <div className="activity-list">
-      {rows.map((transaction) => {
+    <PagedItems
+      className="activity-list"
+      label="Activity"
+      pageSize={limit ?? 5}
+      items={rows.map((transaction) => {
         const involved = transaction.roster_ids
           .map((id) => teamMap.get(id))
           .filter((team): team is Team => Boolean(team));
@@ -183,51 +192,60 @@ export function ActivityList({
                 ))}
               </div>
               {!completed && <p>Status: {transaction.status}</p>}
-              <div className="activity-assets">
-                {(["adds", "drops"] as const).flatMap((direction) =>
-                  Object.entries(transaction[direction] ?? {}).map(
-                    ([id, rosterId]) => (
-                      <div
-                        className={`activity-asset ${direction}`}
-                        key={`${direction}-${id}`}
-                      >
-                        <PlayerRow playerId={id} players={players} />
-                        <small>
-                          <strong>
-                            {direction === "adds" ? "Received" : "Released"}
-                          </strong>{" "}
-                          ·{" "}
-                          {teamMap.get(rosterId)?.managerName ??
-                            `Roster ${rosterId}`}
-                        </small>
-                      </div>
+              <div className="activity-details">
+                <div className="activity-assets">
+                  {(["adds", "drops"] as const).flatMap((direction) =>
+                    Object.entries(transaction[direction] ?? {}).map(
+                      ([id, rosterId]) => (
+                        <div
+                          className={`activity-asset ${direction}`}
+                          key={`${direction}-${id}`}
+                        >
+                          <PlayerRow playerId={id} players={players} />
+                          <small>
+                            <strong>
+                              {direction === "adds" ? "Received" : "Released"}
+                            </strong>
+                            {!["free_agent", "waiver"].includes(
+                              transaction.type,
+                            ) && (
+                              <>
+                                {" "}
+                                ·{" "}
+                                {teamMap.get(rosterId)?.managerName ??
+                                  `Roster ${rosterId}`}
+                              </>
+                            )}
+                          </small>
+                        </div>
+                      ),
                     ),
-                  ),
+                  )}
+                </div>
+                {transaction.draft_picks?.map((pick, index) => (
+                  <p key={index}>
+                    {pick.season} Round {pick.round} pick ·{" "}
+                    {teamMap.get(pick.previous_owner_id)?.managerName ??
+                      "Previous owner"}{" "}
+                    → {teamMap.get(pick.owner_id)?.managerName ?? "New owner"}
+                  </p>
+                ))}
+                {transaction.settings?.waiver_bid != null && (
+                  <p>FAAB bid: ${transaction.settings.waiver_bid}</p>
                 )}
+                {transaction.waiver_budget?.map((budget, index) => (
+                  <p key={index}>
+                    ${budget.amount} FAAB ·{" "}
+                    {teamMap.get(budget.sender)?.managerName} →{" "}
+                    {teamMap.get(budget.receiver)?.managerName}
+                  </p>
+                ))}
               </div>
-              {transaction.draft_picks?.map((pick, index) => (
-                <p key={index}>
-                  {pick.season} Round {pick.round} pick ·{" "}
-                  {teamMap.get(pick.previous_owner_id)?.managerName ??
-                    "Previous owner"}{" "}
-                  → {teamMap.get(pick.owner_id)?.managerName ?? "New owner"}
-                </p>
-              ))}
-              {transaction.settings?.waiver_bid != null && (
-                <p>FAAB bid: ${transaction.settings.waiver_bid}</p>
-              )}
-              {transaction.waiver_budget?.map((budget, index) => (
-                <p key={index}>
-                  ${budget.amount} FAAB ·{" "}
-                  {teamMap.get(budget.sender)?.managerName} →{" "}
-                  {teamMap.get(budget.receiver)?.managerName}
-                </p>
-              ))}
             </div>
           </article>
         );
       })}
-    </div>
+    />
   );
 }
 
@@ -236,11 +254,13 @@ export function PlayerRow({
   players,
   points,
   starter,
+  playStatus,
 }: {
   playerId: string;
   players: Record<string, SleeperPlayer>;
   points?: number;
   starter?: boolean;
+  playStatus?: string;
 }) {
   const player = players[playerId];
   return (
@@ -252,7 +272,13 @@ export function PlayerRow({
         <strong>
           <SleeperPlayerLink
             id={playerId}
-            name={player?.full_name || `Player ${playerId}`}
+            name={
+              player?.full_name ||
+              [player?.first_name, player?.last_name]
+                .filter(Boolean)
+                .join(" ") ||
+              `Player ${playerId}`
+            }
             position={player?.position}
           />
         </strong>
@@ -269,8 +295,10 @@ export function PlayerRow({
             .join(" · ")}
         </small>
       </span>
-      {points != null && (
-        <span className="player-points">{formatPoints(points)}</span>
+      {(points != null || playStatus) && (
+        <span className="player-points">
+          {playStatus || formatPoints(points ?? 0)}
+        </span>
       )}
     </div>
   );

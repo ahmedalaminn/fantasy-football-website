@@ -14,7 +14,9 @@ export type IconName =
   | "trophy"
   | "spark"
   | "calendar"
-  | "close";
+  | "close"
+  | "flag"
+  | "toilet";
 
 const paths: Record<IconName, React.ReactNode> = {
   home: (
@@ -85,6 +87,18 @@ const paths: Record<IconName, React.ReactNode> = {
     <>
       <rect x="3" y="5" width="18" height="16" rx="3" />
       <path d="M7 3v4M17 3v4M3 10h18" />
+    </>
+  ),
+  flag: (
+    <>
+      <path d="M5 21V3M5 4h13l-3 4 3 4H5" />
+      <path d="m9 6 .6 1.2L11 7.4l-1 .9.2 1.4L9 9l-1.2.7.2-1.4-1-.9 1.4-.2Z" />
+    </>
+  ),
+  toilet: (
+    <>
+      <rect x="4" y="3" width="6" height="9" rx="1" />
+      <path d="M7 6h1M4 13h16v2H4zM7 15a6 6 0 0 0 6 5h2l2-5M10 19v3h6v-2" />
     </>
   ),
   close: <path d="m6 6 12 12M18 6 6 18" />,

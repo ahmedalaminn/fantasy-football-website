@@ -260,3 +260,20 @@ export async function getRecentTransactions(
     .sort((a, b) => b.status_updated - a.status_updated)
     .slice(0, count);
 }
+
+export interface WeeklyPlayerStat {
+  player_id: string;
+  team: string;
+  stats: Record<string, number>;
+}
+export const getWeeklyPlayerStats = cache(
+  async (season: string, week: number): Promise<WeeklyPlayerStat[]> => {
+    const response = await fetch(
+      `https://api.sleeper.app/stats/nfl/${season}/${week}?season_type=regular`,
+      { next: { revalidate: ACTIVE_TTL } },
+    );
+    if (!response.ok)
+      throw new Error(`Participation data unavailable for Week ${week}`);
+    return response.json();
+  },
+);

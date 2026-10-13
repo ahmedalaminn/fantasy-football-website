@@ -192,7 +192,7 @@ export function Tabs({
       {items.map((item) => (
         <Link
           key={item.id}
-          href={`${basePath}?${param}=${item.id}`}
+          href={`${basePath}${basePath.includes("?") ? "&" : "?"}${param}=${item.id}`}
           className={active === item.id ? "active" : ""}
         >
           {item.label}

@@ -1,3 +1,4 @@
+import type { SleeperPlayer } from "@/lib/types";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PlayerRow } from "@/components/league-ui";
@@ -15,6 +16,7 @@ import {
   getMatchups,
   getNflState,
   getPlayers,
+  getWeeklyPlayerStats,
 } from "@/lib/sleeper";
 
 export const metadata: Metadata = { title: "Matchups" };
@@ -39,15 +41,26 @@ export default async function MatchupsPage({
     const query = (await searchParams).week;
     const parsed = Number(query);
     const week =
-      Number.isFinite(parsed) && parsed >= 1 && parsed <= 18 ? parsed : current;
+      Number.isInteger(parsed) && parsed >= 1 && parsed <= current
+        ? parsed
+        : current;
     const [rows, players] = await Promise.all([
       getMatchups(
         season.league.league_id,
         week,
         season.league.status === "complete",
       ),
-      getPlayers().catch(() => ({})),
+      getPlayers().catch(() => ({}) as Record<string, SleeperPlayer>),
     ]);
+    const participation = await getWeeklyPlayerStats(
+      season.league.season,
+      week,
+    ).catch(() => null);
+    const played = new Set(
+      participation
+        ?.filter((row) => row.stats.gp > 0)
+        .map((row) => row.player_id),
+    );
     const pairs = pairMatchups(
       rows,
       season.teams,
@@ -62,7 +75,7 @@ export default async function MatchupsPage({
           description="Every head-to-head result, from opening week through the championship."
         />
         <nav className="week-nav" aria-label="Select week">
-          {Array.from({ length: 18 }, (_, i) => i + 1).map((number) => (
+          {Array.from({ length: current }, (_, i) => i + 1).map((number) => (
             <Link
               key={number}
               className={week === number ? "active" : ""}
@@ -84,7 +97,7 @@ export default async function MatchupsPage({
           </Badge>
         </div>
         {pairs.length ? (
-          <div className="two-col">
+          <div className="two-col matchup-grid">
             {pairs.map((pair) => {
               const [left, right] = pair.teams;
               if (!left) return null;
@@ -144,7 +157,18 @@ export default async function MatchupsPage({
                                 key={id}
                                 playerId={id}
                                 players={players}
-                                points={entry.matchup.players_points?.[id] ?? 0}
+                                points={entry.matchup.players_points?.[id]}
+                                playStatus={
+                                  participation && !played.has(id)
+                                    ? week >= current
+                                      ? "Has not played yet"
+                                      : played.has(players[id]?.team ?? "")
+                                        ? "Did not play"
+                                        : "Bye / no game"
+                                    : entry.matchup.players_points?.[id] == null
+                                      ? "No scoring data"
+                                      : undefined
+                                }
                                 starter
                               />
                             ))}

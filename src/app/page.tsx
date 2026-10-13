@@ -68,7 +68,7 @@ export default async function Home() {
     );
     const champion = champions[0];
     return (
-      <div className="content-wrap">
+      <div className="content-wrap dashboard">
         <PageHeader
           eyebrow={`${season.league.season} season · Week ${week}`}
           title="UD Fantasy Football"
@@ -102,7 +102,7 @@ export default async function Home() {
                 href="/standings"
               />
               <Card>
-                <StandingsTable rows={table} compact />
+                <StandingsTable rows={table} compact limit={4} />
               </Card>
             </div>
           </div>
@@ -113,7 +113,7 @@ export default async function Home() {
                   kicker="League royalty"
                   title="Reigning champion"
                   href="/history"
-                  action="Hall of Champions"
+                  action="Season awards"
                 />
                 <Card accent="aqua">
                   <ChampionMini champion={champion} />
@@ -124,13 +124,13 @@ export default async function Home() {
               <SectionHeader
                 kicker="Calculated weekly"
                 title="Power rankings"
-                href="/standings"
-                action="See formula"
+                href="/standings?view=power"
+                action="Full rankings"
               />
               <Card>
                 {rankings.length ? (
                   <div className="ranking-list">
-                    {rankings.slice(0, 6).map((entry) => (
+                    {rankings.slice(0, 3).map((entry) => (
                       <div className="ranking-row" key={entry.rosterId}>
                         <span
                           className={`rank-number ${entry.rank <= 3 ? "top" : ""}`}
@@ -179,7 +179,7 @@ export default async function Home() {
                   transactions={transactions}
                   teams={season.teams}
                   players={players}
-                  limit={5}
+                  limit={2}
                 />
               </Card>
             </div>

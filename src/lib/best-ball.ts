@@ -94,3 +94,19 @@ export function seasonGrade(gain: number | null | undefined) {
         ? "reach"
         : "fair";
 }
+
+export function perGameRankings(
+  adp: AdpRow[],
+  scores: Record<string, number>,
+  production: Record<string, { played: number; available: boolean }>,
+) {
+  const averages = Object.fromEntries(
+    Object.entries(scores).flatMap(([id, points]) => {
+      const games = production[id];
+      return games?.available && games.played > 0 && Number.isFinite(points)
+        ? [[id, points / games.played]]
+        : [];
+    }),
+  );
+  return performanceRankings(adp, averages);
+}

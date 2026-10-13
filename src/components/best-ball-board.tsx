@@ -1,4 +1,5 @@
 "use client";
+import { DraftTradeIndicator } from "./draft-trade-indicator";
 import Image from "next/image";
 import { InfoPopover } from "./info-popover";
 import { useEffect, useRef, useState } from "react";
@@ -7,6 +8,7 @@ import { playerImageUrl } from "@/lib/player-image";
 import type { SleeperDraftPick } from "@/lib/types";
 import {
   performanceRankings,
+  perGameRankings,
   performanceView,
   pickValue,
   seasonGrade,
@@ -14,6 +16,7 @@ import {
 } from "@/lib/best-ball";
 import { Avatar, Badge, Card, EmptyState } from "./ui";
 import { SleeperPlayerLink } from "./sleeper-player-link";
+import type { Production } from "@/lib/production";
 type Player = { id: string; name: string; position: string; team: string };
 const gradeLabel = {
   value: "Steal",
@@ -39,7 +42,10 @@ const displayDate = (date: string | null) =>
     : "Date unavailable";
 export function BestBallBoard({
   players,
+  historical = false,
+  production,
   draftPicks,
+  draftSlots,
   managers,
   managersInfo,
   scores,
@@ -50,10 +56,12 @@ export function BestBallBoard({
   sourceName,
   sourceUrl,
   throughWeek,
-  draftStatus,
 }: {
   players: Player[];
+  historical?: boolean;
+  production: Record<string, Production>;
   draftPicks: SleeperDraftPick[];
+  draftSlots: Record<number, number>;
   managers: Record<number, string>;
   managersInfo: Record<number, { name: string; avatar: string | null }>;
   scores: Record<string, number>;
@@ -64,7 +72,6 @@ export function BestBallBoard({
   sourceName: string;
   sourceUrl: string;
   throughWeek: number;
-  draftStatus: string;
 }) {
   const [query, setQuery] = useState("");
   const [position, setPosition] = useState("All");
@@ -116,13 +123,21 @@ export function BestBallBoard({
     p &&
     (position === "All" || p.position === position) &&
     `${p.name} ${p.team}`.toLowerCase().includes(query.toLowerCase());
+  const roundMatches = (r: number) =>
+    round === "All" ||
+    (round.includes("-")
+      ? r >= Number(round.split("-")[0]) && r <= Number(round.split("-")[1])
+      : r === Number(round));
   const visiblePicks = draftPicks.filter(
     (pick) =>
       matches(playerMap.get(pick.player_id)) &&
       (manager === "All" || pick.roster_id === Number(manager)) &&
-      (round === "All" || pick.round === Number(round)),
+      roundMatches(pick.round),
   );
   const seasonRankings = performanceRankings(adp, scores);
+  const perGameMap = new Map(
+    perGameRankings(adp, scores, production).map((row) => [row.playerId, row]),
+  );
   const seasonMap = new Map(seasonRankings.map((row) => [row.playerId, row]));
   const performance = performanceView(
     seasonRankings,
@@ -150,15 +165,16 @@ export function BestBallBoard({
       </div>
     );
   }
-  const managerIds = [
-    ...new Set([
-      ...draftPicks
-        .slice()
-        .sort((a, b) => a.draft_slot - b.draft_slot)
-        .map((p) => p.roster_id),
-      ...Object.keys(managers).map(Number),
-    ]),
-  ].filter((id) => manager === "All" || id === Number(manager));
+  const slots = Array.from(
+    {
+      length: Math.max(
+        0,
+        ...Object.keys(draftSlots).map(Number),
+        ...draftPicks.map((p) => p.draft_slot),
+      ),
+    },
+    (_, index) => index + 1,
+  );
   const visiblePickNumbers = new Set(visiblePicks.map((p) => p.pick_no));
   function showPreview(pick: SleeperDraftPick, element: HTMLElement) {
     const rect = element.getBoundingClientRect();
@@ -178,11 +194,79 @@ export function BestBallBoard({
   }
   function pickDetails(pick: SleeperDraftPick, interactive = false) {
     const player = playerMap.get(pick.player_id);
+    const games = production[pick.player_id];
     const baseline = benchmarks.get(pick.player_id);
     const value = baseline ? pickValue(pick.pick_no, baseline.adp) : null;
     const grade = value?.grade ?? "unknown";
     const season = seasonMap.get(pick.player_id);
     const currentGrade = seasonGrade(season?.gain);
+    const perGame = perGameMap.get(pick.player_id);
+    if (historical)
+      return (
+        <>
+          <div className="bb-detail-heading">
+            <strong>Draft pick</strong>
+            <small>
+              Round {pick.round} · Pick {pick.pick_no}
+            </small>
+          </div>
+          <div className="board-player">
+            <Image
+              src={playerImageUrl(pick.player_id)}
+              width={40}
+              height={40}
+              alt=""
+            />
+            <span>
+              <strong>
+                {interactive && player ? (
+                  <SleeperPlayerLink
+                    id={player.id}
+                    name={player.name}
+                    position={player.position}
+                  />
+                ) : (
+                  player?.name || pick.player_id
+                )}
+              </strong>
+              <small>
+                {player?.position} · {player?.team}
+              </small>
+            </span>
+          </div>
+          <section className="bb-rating-section">
+            <h4>Draft details</h4>
+            <dl className="bb-detail-stats">
+              <div>
+                <dt>Drafted by</dt>
+                <dd>{managers[pick.roster_id] || "Unknown"}</dd>
+              </div>
+              <div>
+                <dt>Original slot</dt>
+                <dd>
+                  {pick.draft_slot} ·{" "}
+                  {managers[draftSlots[pick.draft_slot]] || "Unknown"}
+                </dd>
+              </div>
+              <div>
+                <dt>Selected at</dt>
+                <dd>#{pick.pick_no} overall</dd>
+              </div>
+              <div>
+                <dt>Draft date</dt>
+                <dd>{displayDate(draftDate)}</dd>
+              </div>
+            </dl>
+            {draftSlots[pick.draft_slot] != null &&
+              pick.roster_id !== draftSlots[pick.draft_slot] && (
+                <p className="bb-production-disclaimer">
+                  Traded pick: {managers[draftSlots[pick.draft_slot]]} →{" "}
+                  {managers[pick.roster_id]}
+                </p>
+              )}
+          </section>
+        </>
+      );
     return (
       <>
         <div className="bb-detail-heading">
@@ -227,7 +311,7 @@ export function BestBallBoard({
         </div>
         <section className="bb-rating-section">
           <h4>
-            This season{" "}
+            Season performance{" "}
             <span className={`grade-${currentGrade}`}>
               {seasonLabel[currentGrade]}
             </span>
@@ -242,7 +326,7 @@ export function BestBallBoard({
               </dd>
             </div>
             <div>
-              <dt>Actual positional rank</dt>
+              <dt>Rank by total points</dt>
               <dd>
                 {season
                   ? `${season.position}${season.scoringRank} rank`
@@ -257,7 +341,21 @@ export function BestBallBoard({
                   : "Not rated"}
               </dd>
             </div>
+            <div>
+              <dt>Rank when playing</dt>
+              <dd>
+                {perGame
+                  ? `${perGame.position}${perGame.scoringRank}`
+                  : games?.available && games.played === 0
+                    ? "Has not played"
+                    : "Unavailable"}
+              </dd>
+            </div>
           </dl>
+          <p className="bb-production-disclaimer">
+            Ranks players at the same position by points per game played. Less
+            reliable with fewer games.
+          </p>
         </section>
         <section className="bb-rating-section">
           <h4>
@@ -289,20 +387,38 @@ export function BestBallBoard({
           <h4>Production</h4>
           <dl className="bb-detail-stats">
             <div>
-              <dt>Actual total</dt>
+              <dt>Total points</dt>
               <dd>
-                {scores[pick.player_id] != null
-                  ? `${scores[pick.player_id].toFixed(1)} fantasy pts`
+                {games?.available && games.played === 0
+                  ? "Has not played"
+                  : scores[pick.player_id] != null
+                    ? `${scores[pick.player_id].toFixed(1)} fantasy pts`
+                    : "Unavailable"}
+              </dd>
+            </div>
+            <div>
+              <dt>Average / game played</dt>
+              <dd>
+                {scores[pick.player_id] != null &&
+                games?.available &&
+                games.played > 0
+                  ? `${(scores[pick.player_id] / games.played).toFixed(1)} pts/game`
+                  : games?.available && games.played === 0
+                    ? "Has not played"
+                    : "Unavailable"}
+              </dd>
+            </div>
+            <div>
+              <dt>Games played</dt>
+              <dd>
+                {games?.available
+                  ? `${games.played}/${games.scheduled}`
                   : "Unavailable"}
               </dd>
             </div>
             <div>
-              <dt>Actual weekly average</dt>
-              <dd>
-                {scores[pick.player_id] != null && throughWeek > 0
-                  ? `${(scores[pick.player_id] / throughWeek).toFixed(1)} pts/week`
-                  : "Unavailable"}
-              </dd>
+              <dt>Games missed</dt>
+              <dd>{games?.available ? games.missed : "Unavailable"}</dd>
             </div>
           </dl>
         </section>
@@ -315,9 +431,9 @@ export function BestBallBoard({
     return (
       <button
         type="button"
-        className={`bb-board-pick bb-board-${grade}`}
+        className={`bb-board-pick ${historical ? "bb-board-historical" : `bb-board-${grade}`}`}
         key={pick.pick_no}
-        aria-label={`${player?.name ?? `Player ${pick.player_id}`}, round ${pick.round}, pick ${pick.pick_no}, ${seasonLabel[grade]}. View details`}
+        aria-label={`${player?.name ?? `Player ${pick.player_id}`}, round ${pick.round}, pick ${pick.pick_no}, ${historical ? "Draft pick" : seasonLabel[grade]}${draftSlots[pick.draft_slot] != null && pick.roster_id !== draftSlots[pick.draft_slot] ? `. Pick traded to ${managers[pick.roster_id] ?? "drafting manager"}` : ""}. View details`}
         aria-describedby={
           hovered?.pick.pick_no === pick.pick_no && !selected
             ? "bb-pick-tooltip"
@@ -351,6 +467,14 @@ export function BestBallBoard({
           setSelected(pick);
         }}
       >
+        <span className="draft-cell-top">
+          <small className="draft-pick-number">#{pick.pick_no}</small>
+          <span
+            className={`draft-position-chip position-${player?.position.toLowerCase() || "unknown"}`}
+          >
+            {player?.position || "—"}
+          </span>
+        </span>
         <Image
           src={playerImageUrl(pick.player_id)}
           width={42}
@@ -358,6 +482,16 @@ export function BestBallBoard({
           alt=""
         />
         <strong>{player?.name ?? `Player ${pick.player_id}`}</strong>
+        <small className="draft-cell-team">{player?.team || "FA"}</small>
+        <span className="draft-cell-footer">
+          {draftSlots[pick.draft_slot] != null &&
+            pick.roster_id !== draftSlots[pick.draft_slot] && (
+              <DraftTradeIndicator
+                original={managers[draftSlots[pick.draft_slot]]}
+                recipient={managers[pick.roster_id]}
+              />
+            )}
+        </span>
       </button>
     );
   }
@@ -367,41 +501,62 @@ export function BestBallBoard({
         <div>
           <strong>{leagueName}</strong>
           <span>
-            Draft review
+            {historical
+              ? `Drafted ${displayDate(draftDate)}`
+              : `Through Week ${throughWeek}`}{" "}
+            · Draft review
             <InfoPopover
-              title="How the ratings work"
-              sections={[
-                {
-                  title: "This season · Sets board color",
-                  items: [
-                    "Expected positional rank − actual scoring rank = rank difference.",
-                    "Green: positive · Yellow: unchanged · Red: negative · Gray: unavailable.",
-                    "Both ranks compare the same players with recorded points, within each position.",
-                  ],
-                },
-                {
-                  title: "Draft day · Pick value",
-                  items: [
-                    "Actual pick − Sleeper ADP = pick difference.",
-                    "Steal/reach: at least 10% of ADP, minimum 3 picks. Otherwise, just right.",
-                  ],
-                },
-                {
-                  title: "Production",
-                  items: [
-                    `Weekly average = recorded fantasy points ÷ ${throughWeek} completed weeks, including missing-point weeks.`,
-                    "ADP supplies no expected point projections. League roster data can omit unrostered scoring.",
-                  ],
-                },
-                {
-                  title: "Data dates",
-                  items: [
-                    `Drafted ${displayDate(draftDate)} · Scoring through Week ${throughWeek}.`,
-                    `ADP frozen ${displayDate(snapshotDate)}; historical cutoff unverified.`,
-                    `${ratedPicks.length} of ${draftPicks.length} draft picks have ADP.`,
-                  ],
-                },
-              ]}
+              title={
+                historical ? "About the draft board" : "How the ratings work"
+              }
+              sections={
+                historical
+                  ? [
+                      {
+                        title: "Draft picks",
+                        items: [
+                          "Each column stays with its original draft slot. An arrow names the receiving manager for traded picks.",
+                          "Hover or select a pick for its draft-day details.",
+                        ],
+                      },
+                    ]
+                  : [
+                      {
+                        title: "Draft board",
+                        items: [
+                          "Each column is an original draft slot. → names the receiving manager for a traded pick. Hover or select a player for details.",
+                        ],
+                      },
+                      {
+                        title: "Board colors",
+                        items: [
+                          "Green: scoring above draft expectations. Yellow: matching them. Red: below them. Gray: no rating.",
+                          "We compare scoring rank with preseason draft rank within each position.",
+                        ],
+                      },
+                      {
+                        title: "Draft value",
+                        items: [
+                          "ADP is the average pick where a player was drafted on Sleeper. Picking later can be a steal; earlier can be a reach.",
+                        ],
+                      },
+                      {
+                        title: "Production",
+                        items: [
+                          "Points use your league’s scoring. Averages count games played only.",
+                          "Rank when playing compares players at the same position by points per game played. Less reliable with fewer games.",
+                        ],
+                      },
+                      {
+                        title: "Source",
+                        items: [
+                          `ADP captured ${displayDate(snapshotDate)} · Draft ${displayDate(draftDate)}.`,
+                          `${ratedPicks.length}/${draftPicks.length} picks have ADP.`,
+                          "Sleeper’s exact ADP cutoff is unverified; it may differ from draft-day ADP.",
+                        ],
+                      },
+                    ]
+              }
               footer={
                 <a
                   href={sourceUrl}
@@ -415,15 +570,8 @@ export function BestBallBoard({
             />
           </span>
         </div>
-        <Badge tone="aqua">
-          {draftStatus === "complete"
-            ? "Draft complete"
-            : draftStatus === "drafting"
-              ? "Draft in progress"
-              : "Awaiting draft"}
-        </Badge>
       </div>
-      {!adp.length && (
+      {!historical && !adp.length && (
         <p role="status">
           Sleeper ADP for this season is unavailable. Picks remain unrated.
         </p>
@@ -436,8 +584,8 @@ export function BestBallBoard({
         >
           {[
             ["board", "Draft board"],
-            ["performance", "ADP outperformers"],
-            ["underperformance", "ADP underperformers"],
+            ["performance", "Outperformers"],
+            ["underperformance", "Underperformers"],
           ].map(([id, label]) => (
             <button
               type="button"
@@ -447,6 +595,12 @@ export function BestBallBoard({
               aria-selected={tab === id}
               className={tab === id ? "active" : ""}
               key={id}
+              disabled={historical && id !== "board"}
+              title={
+                historical && id !== "board"
+                  ? "Best Ball analysis is available for the current season"
+                  : undefined
+              }
               onClick={() => setTab(id)}
             >
               {label}
@@ -498,6 +652,13 @@ export function BestBallBoard({
                   onChange={(e) => setRound(e.target.value)}
                 >
                   <option>All</option>
+                  {rounds
+                    .filter((_, i) => i % 3 === 0)
+                    .map((r) => (
+                      <option key={`group-${r}`} value={`${r}-${r + 2}`}>
+                        Rounds {r}–{Math.min(r + 2, rounds.at(-1) ?? r)}
+                      </option>
+                    ))}
                   {rounds.map((r) => (
                     <option key={r} value={r}>
                       Round {r}
@@ -532,13 +693,7 @@ export function BestBallBoard({
             aria-labelledby="bb-tab-board"
           >
             <div className="bb-section-copy">
-              <h3>League draft board</h3>
-              <p>
-                <span className="grade-value">Green: outperforming</span> ·{" "}
-                <span className="grade-fair">Yellow: meeting expectations</span>{" "}
-                · <span className="grade-reach">Red: underperforming</span> ·
-                Gray: unrated. Hover or select a player for details.
-              </p>
+              <h3>Draft board</h3>
             </div>
             {visiblePicks.length ? (
               <div
@@ -553,40 +708,40 @@ export function BestBallBoard({
                       <th scope="col" className="bb-round-axis">
                         Round
                       </th>
-                      {managerIds.map((id) => (
-                        <th scope="col" key={id}>
+                      {slots.map((slot) => (
+                        <th scope="col" key={slot}>
                           <Avatar
-                            src={managersInfo[id]?.avatar}
-                            name={managers[id] ?? "Manager"}
+                            src={managersInfo[draftSlots[slot]]?.avatar}
+                            name={managers[draftSlots[slot]] ?? `Slot ${slot}`}
                             size="sm"
                           />
-                          <span>{managers[id] ?? "Manager"}</span>
+                          <span>
+                            {managers[draftSlots[slot]] ?? `Slot ${slot}`}
+                          </span>
                         </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {rounds
-                      .filter((r) => round === "All" || r === Number(round))
-                      .map((r) => (
-                        <tr key={r}>
-                          <th scope="row" className="bb-round-axis">
-                            {String(r).padStart(2, "0")}
-                          </th>
-                          {managerIds.map((id) => (
-                            <td key={id}>
-                              {draftPicks
-                                .filter(
-                                  (p) =>
-                                    p.round === r &&
-                                    p.roster_id === id &&
-                                    visiblePickNumbers.has(p.pick_no),
-                                )
-                                .map(pickCell)}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
+                    {rounds.filter(roundMatches).map((r) => (
+                      <tr key={r}>
+                        <th scope="row" className="bb-round-axis">
+                          {String(r).padStart(2, "0")}
+                        </th>
+                        {slots.map((slot) => (
+                          <td key={slot}>
+                            {draftPicks
+                              .filter(
+                                (p) =>
+                                  p.round === r &&
+                                  p.draft_slot === slot &&
+                                  visiblePickNumbers.has(p.pick_no),
+                              )
+                              .map(pickCell)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -620,8 +775,8 @@ export function BestBallBoard({
               </h3>
               <p>
                 Movement from positional Sleeper ADP order to positional scoring
-                rank, among ADP-covered players with league scoring data.
-                Completed weeks only.{" "}
+                rank, among ADP-covered players with scoring data. Completed
+                weeks only.{" "}
                 {tab === "underperformance"
                   ? "Largest shortfalls first."
                   : "Largest gains first."}{" "}
@@ -650,7 +805,12 @@ export function BestBallBoard({
                       </div>
                       <div className="bb-list-stat">
                         <small>Season points</small>
-                        <strong>{row.points.toFixed(1)} fantasy pts</strong>
+                        <strong>
+                          {production[row.playerId]?.available &&
+                          production[row.playerId].played === 0
+                            ? "Has not played"
+                            : `${row.points.toFixed(1)} fantasy pts`}
+                        </strong>
                       </div>
                       <span
                         className={`bb-gain grade-${row.gain > 0 ? "value" : row.gain < 0 ? "reach" : "fair"}`}

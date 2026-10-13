@@ -1,3 +1,4 @@
+import { RivalryPicker } from "@/components/rivalry-picker";
 import type { Metadata } from "next";
 import {
   Avatar,
@@ -57,7 +58,8 @@ export default async function RivalriesPage({
     const people = new Map<string, string>();
     bundles.forEach((bundle) =>
       bundle.teams.forEach((team) => {
-        if (team.ownerId) people.set(team.ownerId, team.managerName);
+        if (team.ownerId && !people.has(team.ownerId))
+          people.set(team.ownerId, team.managerName);
       }),
     );
     const ids = [...people.keys()];
@@ -84,7 +86,11 @@ export default async function RivalriesPage({
       const teamOne = season.teams.find((team) => team.ownerId === one);
       const teamTwo = season.teams.find((team) => team.ownerId === two);
       if (!teamOne || !teamTwo) continue;
-      for (const week of season.weeks) {
+      for (const week of season.weeks.filter(
+        (w) =>
+          season.league.status === "complete" ||
+          w.week < (season.league.settings.leg || 1),
+      )) {
         const a = week.matchups.find(
           (row) => row.roster_id === teamOne.rosterId,
         );
@@ -130,36 +136,28 @@ export default async function RivalriesPage({
           title="League rivalries"
           description="Head-to-head records, scoring, and trade history between league managers."
         />
-        <form className="rival-selects" action="/rivalries">
-          <label>
-            <span>Manager one</span>
-            <select name="p1" defaultValue={one}>
-              {ids.map((id) => (
-                <option key={id} value={id}>
-                  {people.get(id)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <span className="rival-vs">VS</span>
-          <label>
-            <span>Manager two</span>
-            <select name="p2" defaultValue={two}>
-              {ids.map((id) => (
-                <option key={id} value={id}>
-                  {people.get(id)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button className="button button-primary" type="submit">
-            Compare
-          </button>
-        </form>
-        <Card className="panel-pad">
+        <RivalryPicker
+          one={one}
+          two={two}
+          people={ids.map((id) => ({
+            id,
+            name: people.get(id)!,
+            avatar:
+              bundles.flatMap((b) => b.teams).find((t) => t.ownerId === id)
+                ?.avatarUrl ?? null,
+          }))}
+        />
+        <Card className="panel-pad rivalry-summary">
           <div className="rivalry-head">
             <div>
-              <Avatar name={people.get(one) || "Manager"} size="lg" />
+              <Avatar
+                src={
+                  bundles.flatMap((b) => b.teams).find((t) => t.ownerId === one)
+                    ?.avatarUrl
+                }
+                name={people.get(one) || "Manager"}
+                size="lg"
+              />
               <h2>{people.get(one)}</h2>
             </div>
             <div>
@@ -172,7 +170,14 @@ export default async function RivalriesPage({
               </small>
             </div>
             <div>
-              <Avatar name={people.get(two) || "Manager"} size="lg" />
+              <Avatar
+                src={
+                  bundles.flatMap((b) => b.teams).find((t) => t.ownerId === two)
+                    ?.avatarUrl
+                }
+                name={people.get(two) || "Manager"}
+                size="lg"
+              />
               <h2>{people.get(two)}</h2>
             </div>
           </div>
@@ -193,7 +198,7 @@ export default async function RivalriesPage({
             <h2>Matchup history</h2>
           </div>
         </div>
-        <Card>
+        <Card className="rivalry-history">
           {history.length ? (
             <div className="data-table-wrap">
               <table className="data-table">

@@ -1,9 +1,9 @@
-import type { CSSProperties } from "react";
+import { redirect } from "next/navigation";
+import { Icon } from "@/components/icon";
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
   Avatar,
-  Badge,
   Card,
   EmptyState,
   ErrorState,
@@ -15,27 +15,21 @@ import {
   matchupRecords,
   powerRankings,
 } from "@/lib/calculations";
-import { leagueContent } from "@/lib/content";
 import { getChampions } from "@/lib/history";
 import {
   getAllWeeks,
-  getDraftPicks,
-  getDrafts,
   getPlayers,
   getSeasonBundle,
   getSeasonChain,
   getTransactions,
 } from "@/lib/sleeper";
 import type { SeasonBundle, SleeperPlayer } from "@/lib/types";
-import { SleeperPlayerLink } from "@/components/sleeper-player-link";
 
 export const metadata: Metadata = { title: "League History" };
 export const dynamic = "force-dynamic";
 const tabs = [
-  { id: "champions", label: "Champions" },
   { id: "awards", label: "Awards" },
   { id: "records", label: "Records" },
-  { id: "drafts", label: "Drafts" },
 ];
 
 async function loadBundles() {
@@ -69,19 +63,31 @@ export default async function HistoryPage({
   searchParams: Promise<{
     tab?: string;
     season?: string;
+    records?: string;
   }>;
 }) {
+  const query = await searchParams;
+  if (query.tab === "drafts")
+    redirect(
+      query.season
+        ? `/drafts?season=${encodeURIComponent(query.season)}`
+        : "/drafts",
+    );
   try {
-    const query = await searchParams;
     const active = tabs.some((item) => item.id === query.tab)
       ? query.tab!
-      : "champions";
+      : "awards";
     const [champions, bundles] = await Promise.all([
       getChampions().catch(() => []),
       loadBundles(),
     ]);
     const selected =
       bundles.find((bundle) => bundle.league.season === query.season) ||
+      (active === "awards"
+        ? bundles.find(
+            (bundle) => bundle.league.season === champions[0]?.season,
+          )
+        : null) ||
       bundles[0];
     return (
       <div className="content-wrap">
@@ -91,13 +97,26 @@ export default async function HistoryPage({
           description="Championships, records, and draft nights from across the league."
         />
         <Tabs items={tabs} active={active} basePath="/history" />
-        {active === "champions" && <Champions champions={champions} />}{" "}
-        {active === "awards" && <Awards champions={champions} />}{" "}
-        {active === "records" && (
-          <Records bundles={bundles} champions={champions} />
+        {active === "awards" && (
+          <>
+            <SeasonLinks
+              bundles={bundles}
+              selected={selected?.league.season || ""}
+              tab="awards"
+            />
+            <Awards
+              champions={champions.filter(
+                (entry) => entry.season === selected?.league.season,
+              )}
+            />
+          </>
         )}{" "}
-        {active === "drafts" && selected && (
-          <Drafts bundles={bundles} selected={selected} />
+        {active === "records" && (
+          <Records
+            bundles={bundles}
+            champions={champions}
+            view={query.records === "managers" ? "managers" : "highlights"}
+          />
         )}{" "}
       </div>
     );
@@ -115,7 +134,7 @@ export default async function HistoryPage({
   }
 }
 
-function Champions({
+function Awards({
   champions,
 }: {
   champions: Awaited<ReturnType<typeof getChampions>>;
@@ -125,117 +144,106 @@ function Champions({
       <Card>
         <EmptyState
           icon="trophy"
-          title="No completed championships found"
-          description="The Hall will populate from each linked season's playoff bracket."
+          title="Awards await the season finish"
+          description="Choose a completed season to explore its award cabinet."
         />
       </Card>
     );
-  return (
-    <div className="champion-grid">
-      {champions.map((entry) => (
-        <Card className="legacy-card" key={entry.leagueId}>
-          <div className="legacy-year">
-            <Badge tone="aqua">League champion</Badge>
-            <strong>{entry.season}</strong>
-          </div>
-          <div className="legacy-winner">
-            <Avatar
-              src={entry.champion.avatarUrl}
-              name={entry.champion.managerName}
-              size="xl"
-              ring
-            />
-            <div>
-              <h2>{entry.champion.teamName}</h2>
-              <p>
-                {entry.champion.managerName} ·{" "}
-                {entry.titleCount === 1
-                  ? "First title"
-                  : `${entry.titleCount}× champion`}
-              </p>
-              {leagueContent.championStories[entry.season] && (
-                <p className="champion-story">
-                  {leagueContent.championStories[entry.season]}
-                </p>
-              )}
-            </div>
-          </div>
-          <div className="legacy-footer">
-            <div>
-              <span>Record</span>
-              <strong>
-                {entry.champion.wins}-{entry.champion.losses}
-              </strong>
-            </div>
-            <div>
-              <span>Points for</span>
-              <strong>{formatPoints(entry.champion.pointsFor)}</strong>
-            </div>
-            <div>
-              <span>Runner-up</span>
-              <strong>{entry.runnerUp?.managerName || "—"}</strong>
-            </div>
-          </div>
-        </Card>
-      ))}
-    </div>
-  );
-}
-
-function Awards({
-  champions,
-}: {
-  champions: Awaited<ReturnType<typeof getChampions>>;
-}) {
   return (
     <div className="award-section">
       {champions.map((entry) => (
         <Card className="award-season" key={entry.leagueId}>
           <h2>{entry.season} Award Cabinet</h2>
-          <div className="award-grid">
-            <Award label="League champion" team={entry.champion} />
-            <Award label="Runner-up" team={entry.runnerUp} />
-            <Award label="Third place" team={entry.thirdPlace} />
-            <Award
-              label="Regular-season winner"
-              team={entry.regularSeasonChampion}
-            />
-            <Award label="Last-place finisher" team={entry.lastPlace} />
-            <div className="award">
-              <span>Legacy</span>
-              <strong>
-                {entry.titleCount} career title
-                {entry.titleCount === 1 ? "" : "s"}
-              </strong>
-            </div>
+          <div className="awards-podium" aria-label="Season podium">
+            <PodiumPlace place={2} team={entry.runnerUp} />
+            <PodiumPlace place={1} team={entry.champion} />
+            <PodiumPlace place={3} team={entry.thirdPlace} />
+          </div>
+          <div className="season-honors">
+            <SeasonHonor kind="last" team={entry.lastPlace} />
+            <SeasonHonor kind="regular" team={entry.regularSeasonChampion} />
           </div>
         </Card>
       ))}
     </div>
   );
 }
-function Award({
-  label,
+function PodiumPlace({
+  place,
   team,
 }: {
-  label: string;
+  place: 1 | 2 | 3;
+  team: import("@/lib/types").Team | null;
+}) {
+  const title =
+    place === 1 ? "League champion" : place === 2 ? "Runner-up" : "Third place";
+  return (
+    <article
+      className={`podium-place podium-place-${place}`}
+      aria-label={`${place === 1 ? "1st" : place === 2 ? "2nd" : "3rd"} place: ${team?.teamName || "Not available"}`}
+    >
+      <div className="podium-person">
+        <span className="podium-medal" aria-hidden="true">
+          {place === 1 ? "🥇" : place === 2 ? "🥈" : "🥉"}
+        </span>
+        {team && (
+          <Avatar
+            src={team.avatarUrl}
+            name={team.managerName}
+            size="lg"
+            ring={place === 1}
+          />
+        )}
+        <strong>{team?.teamName || "Not available"}</strong>
+        {team && <small>{team.managerName}</small>}
+      </div>
+      <div className="podium-step">
+        <span>{place === 1 ? "1st" : place === 2 ? "2nd" : "3rd"}</span>
+        <strong>{title}</strong>
+      </div>
+    </article>
+  );
+}
+function SeasonHonor({
+  kind,
+  team,
+}: {
+  kind: "last" | "regular";
   team: import("@/lib/types").Team | null;
 }) {
   return (
-    <div className="award">
-      <span>{label}</span>
-      <strong>{team ? team.teamName : "Not available"}</strong>
-      {team && <small>{team.managerName}</small>}
-    </div>
+    <article className={`season-honor season-honor-${kind}`}>
+      <div className="season-honor-icon">
+        <Icon name={kind === "last" ? "toilet" : "flag"} />
+      </div>
+      <div className="season-honor-copy">
+        <span>
+          {kind === "last" ? "The porcelain throne" : "Regular-season winner"}
+        </span>
+        <strong>{team?.teamName || "Not available"}</strong>
+        <small>
+          {team?.managerName || ""}
+          {team ? " · " : ""}
+          {kind === "last"
+            ? "Last-place finisher"
+            : "Regular-season honors · Before the playoffs"}
+        </small>
+      </div>
+      {team && (
+        <Avatar src={team.avatarUrl} name={team.managerName} size="sm" />
+      )}
+    </article>
   );
 }
 
 async function Records({
   bundles,
   champions,
+  view,
 }: {
   bundles: SeasonBundle[];
   champions: Awaited<ReturnType<typeof getChampions>>;
+  view: "highlights" | "managers";
 }) {
   const [seasons, players, transactionSets] = await Promise.all([
     loadSeasonWeeks(bundles),
@@ -301,194 +309,124 @@ async function Records({
     .sort((a, b) => b[1].transactions - a[1].transactions)[0];
   return (
     <div className="stack">
-      <div className="four-col">
-        {records.map((record) => (
-          <Card className="record-card" key={record.label}>
-            <span>{record.label}</span>
-            <h3>{record.value}</h3>
-            <p>{record.teamName}</p>
-            <small>
-              {record.manager} · {record.season} Week {record.week}
-            </small>
-          </Card>
-        ))}
-        {bestSeason && (
-          <Card className="record-card">
-            <span>Highest season total</span>
-            <h3>{formatPoints(bestSeason.team.pointsFor)}</h3>
-            <p>{bestSeason.team.teamName}</p>
-            <small>
-              {bestSeason.team.managerName} · {bestSeason.season}
-            </small>
-          </Card>
-        )}
-        {efficiency && (
-          <Card className="record-card">
-            <span>Best lineup efficiency</span>
-            <h3>{Math.round(efficiency.components.lineupEfficiency * 100)}%</h3>
-            <p>{efficiency.team.teamName}</p>
-            <small>Best full-season rate</small>
-          </Card>
-        )}
-        {mostActive && (
-          <Card className="record-card">
-            <span>Most transactions</span>
-            <h3>{mostActive[1].transactions}</h3>
-            <p>{mostActive[1].name}</p>
-            <small>Across {mostActive[1].seasons} seasons</small>
-          </Card>
-        )}
-      </div>
-      <div>
-        <div className="section-header">
-          <div>
-            <span className="eyebrow">All-time totals</span>
-            <h2>Manager leaderboard</h2>
-          </div>
-        </div>
-        <Card>
-          <div className="data-table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Rank</th>
-                  <th>Manager</th>
-                  <th>Seasons</th>
-                  <th>W</th>
-                  <th>L</th>
-                  <th>PF</th>
-                  <th>Titles</th>
-                </tr>
-              </thead>
-              <tbody>
-                {managers.map(([id, item], index) => (
-                  <tr key={id}>
-                    <td>
-                      <span className={`rank-number ${index < 3 ? "top" : ""}`}>
-                        {index + 1}
-                      </span>
-                    </td>
-                    <td>{item.name}</td>
-                    <td>{item.seasons}</td>
-                    <td>{item.wins}</td>
-                    <td>{item.losses}</td>
-                    <td>{formatPoints(item.points)}</td>
-                    <td>
-                      {
-                        champions.filter(
-                          (entry) => entry.champion.ownerId === id,
-                        ).length
-                      }
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      </div>
-    </div>
-  );
-}
-
-async function Drafts({
-  bundles,
-  selected,
-}: {
-  bundles: SeasonBundle[];
-  selected: SeasonBundle;
-}) {
-  const drafts = await getDrafts(selected.league.league_id).catch(() => []);
-  const draft = drafts[0];
-  const [picks, players] = await Promise.all([
-    draft ? getDraftPicks(draft.draft_id).catch(() => []) : [],
-    getPlayers().catch(() => ({}) as Record<string, SleeperPlayer>),
-  ]);
-  const rounds =
-    draft?.settings.rounds || Math.max(0, ...picks.map((pick) => pick.round));
-  const slots = draft?.settings.teams || selected.league.total_rosters;
-  return (
-    <div>
-      <SeasonLinks
-        bundles={bundles}
-        selected={selected.league.season}
-        tab="drafts"
+      <Tabs
+        items={[
+          { id: "highlights", label: "Record holders" },
+          { id: "managers", label: "Manager leaderboard" },
+        ]}
+        active={view}
+        basePath="/history?tab=records"
+        param="records"
       />
-      {draft ? (
-        <Card>
-          <div className="draft-meta panel-pad">
+      {view === "highlights" && (
+        <div className="four-col record-gallery">
+          {records.map((record) => (
+            <Card className="record-card" key={record.label}>
+              <Avatar
+                src={
+                  bundles
+                    .flatMap((bundle) => bundle.teams)
+                    .find((team) => team.managerName === record.manager)
+                    ?.avatarUrl
+                }
+                name={record.manager}
+                size="sm"
+              />
+              <Icon name="standings" />
+              <span>{record.label}</span>
+              <h3>{record.value}</h3>
+              <p>{record.teamName}</p>
+              <small>
+                {record.manager} · {record.season} Week {record.week}
+              </small>
+            </Card>
+          ))}
+          {bestSeason && (
+            <Card className="record-card">
+              <span>Highest season total</span>
+              <h3>{formatPoints(bestSeason.team.pointsFor)}</h3>
+              <p>{bestSeason.team.teamName}</p>
+              <small>
+                {bestSeason.team.managerName} · {bestSeason.season}
+              </small>
+            </Card>
+          )}
+          {efficiency && (
+            <Card className="record-card">
+              <span>Best lineup efficiency</span>
+              <h3>
+                {Math.round(efficiency.components.lineupEfficiency * 100)}%
+              </h3>
+              <p>{efficiency.team.teamName}</p>
+              <small>Best full-season rate</small>
+            </Card>
+          )}
+          {mostActive && (
+            <Card className="record-card">
+              <span>Most transactions</span>
+              <h3>{mostActive[1].transactions}</h3>
+              <p>{mostActive[1].name}</p>
+              <small>Across {mostActive[1].seasons} seasons</small>
+            </Card>
+          )}
+        </div>
+      )}
+      {view === "managers" && (
+        <div>
+          <div className="section-header">
             <div>
-              <Badge tone="violet">{draft.status}</Badge>
-              <h2>{selected.league.season} Draft</h2>
-              <p>
-                {draft.type} · {rounds} rounds · {slots} teams
-              </p>
+              <span className="eyebrow">All-time totals</span>
+              <h2>Manager leaderboard</h2>
             </div>
           </div>
-          <div
-            className="draft-board"
-            style={{ "--team-count": slots } as CSSProperties}
-          >
-            {Array.from({ length: rounds }, (_, i) => i + 1).map((round) => (
-              <div className="draft-round" key={round}>
-                <div className="draft-round-label">RD {round}</div>
-                {Array.from({ length: slots }, (_, i) => i + 1).map((slot) => {
-                  const pick = picks.find(
-                    (entry) =>
-                      entry.round === round && entry.draft_slot === slot,
-                  );
-                  const player = pick ? players[pick.player_id] : null;
-                  const playerName = pick
-                    ? player?.full_name ||
-                      [pick.metadata?.first_name, pick.metadata?.last_name]
-                        .filter(Boolean)
-                        .join(" ") ||
-                      pick.player_id
-                    : "";
-                  const team = pick
-                    ? selected.teams.find(
-                        (entry) => entry.rosterId === pick.roster_id,
-                      )
-                    : null;
-                  return (
-                    <div className="draft-pick" key={slot}>
-                      {pick ? (
-                        <>
-                          <strong>
-                            <SleeperPlayerLink
-                              id={pick.player_id}
-                              name={playerName}
-                              position={
-                                player?.position || pick.metadata?.position
-                              }
-                            />
-                          </strong>
-                          <small>
-                            {player?.position || pick.metadata?.position} ·{" "}
-                            {team?.managerName || "Unknown"}
-                          </small>
-                        </>
-                      ) : (
-                        <span>—</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        </Card>
-      ) : (
-        <Card>
-          <EmptyState
-            title="No draft found"
-            description="Sleeper did not return a draft for this season."
-          />
-        </Card>
+          <Card className="record-leaderboard">
+            <div className="data-table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Rank</th>
+                    <th>Manager</th>
+                    <th>Seasons</th>
+                    <th>W</th>
+                    <th>L</th>
+                    <th>PF</th>
+                    <th>Titles</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {managers.map(([id, item], index) => (
+                    <tr key={id}>
+                      <td>
+                        <span
+                          className={`rank-number ${index < 3 ? "top" : ""}`}
+                        >
+                          {index + 1}
+                        </span>
+                      </td>
+                      <td>{item.name}</td>
+                      <td>{item.seasons}</td>
+                      <td>{item.wins}</td>
+                      <td>{item.losses}</td>
+                      <td>{formatPoints(item.points)}</td>
+                      <td>
+                        {
+                          champions.filter(
+                            (entry) => entry.champion.ownerId === id,
+                          ).length
+                        }
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
       )}
     </div>
   );
 }
+
 function SeasonLinks({
   bundles,
   selected,
