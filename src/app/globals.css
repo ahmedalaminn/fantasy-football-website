@@ -4391,23 +4391,46 @@ a {
   height: 19px;
   min-height: 19px;
 }
-/* Stronger red tint distinguishes underperformance from the quiet yellow cards. */
+/* Blend continuously through yellow as performance moves away from expectations. */
+.bb-draft-board .bb-board-value {
+  --performance-endpoint: var(--green);
+}
 .bb-draft-board .bb-board-reach {
-  --pick-accent: #dc334d;
-  border-color: color-mix(in srgb, #dc334d 35%, var(--border));
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, #dc334d 18%, var(--surface)),
-    color-mix(in srgb, #dc334d 8%, var(--surface))
-  );
+  --performance-endpoint: #dc334d;
 }
 :root[data-theme="dark"] .bb-draft-board .bb-board-reach {
-  --pick-accent: #ff526b;
-  border-color: color-mix(in srgb, #ff526b 45%, var(--border));
+  --performance-endpoint: #ff526b;
+}
+.bb-draft-board .bb-board-value,
+.bb-draft-board .bb-board-fair,
+.bb-draft-board .bb-board-reach {
+  --performance-color: color-mix(
+    in srgb,
+    var(--performance-endpoint, var(--yellow)) var(--performance-blend, 0%),
+    var(--yellow)
+  );
+  --pick-accent: color-mix(
+    in srgb,
+    var(--performance-color) var(--performance-accent, 30%),
+    var(--border)
+  );
+  border-color: color-mix(
+    in srgb,
+    var(--performance-color) var(--performance-border, 12%),
+    var(--border)
+  );
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, #ff526b 24%, var(--surface)),
-    color-mix(in srgb, #ff526b 12%, var(--surface))
+    color-mix(
+      in srgb,
+      var(--performance-color) var(--performance-tint, 4%),
+      var(--surface)
+    ),
+    color-mix(
+      in srgb,
+      var(--performance-color) var(--performance-tail, 1%),
+      var(--surface)
+    )
   );
 }
 

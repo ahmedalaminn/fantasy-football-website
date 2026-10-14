@@ -2,7 +2,7 @@
 import { DraftTradeIndicator } from "./draft-trade-indicator";
 import Image from "next/image";
 import { InfoPopover } from "./info-popover";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { playerImageUrl } from "@/lib/player-image";
 import type { SleeperDraftPick } from "@/lib/types";
@@ -423,12 +423,25 @@ export function BestBallBoard({
   }
   function pickCell(pick: SleeperDraftPick) {
     const player = playerMap.get(pick.player_id);
-    const grade = seasonGrade(seasonMap.get(pick.player_id)?.gain);
+    const gain = seasonMap.get(pick.player_id)?.gain;
+    const grade = seasonGrade(gain);
+    const strength = Math.min(Math.abs(gain ?? 0) / 24, 1);
     return (
       <button
         type="button"
         className={`bb-board-pick ${historical ? "bb-board-historical" : `bb-board-${grade}`}`}
         key={pick.pick_no}
+        style={
+          !historical && grade !== "unknown"
+            ? ({
+                "--performance-blend": `${strength * 100}%`,
+                "--performance-accent": `${30 + strength * 70}%`,
+                "--performance-tint": `${4 + strength * 22}%`,
+                "--performance-tail": `${1 + strength * 11}%`,
+                "--performance-border": `${12 + strength * 38}%`,
+              } as CSSProperties)
+            : undefined
+        }
         aria-label={`${player?.name ?? `Player ${pick.player_id}`}, round ${pick.round}, pick ${pick.pick_no}, ${historical ? "Draft pick" : seasonLabel[grade]}${draftSlots[pick.draft_slot] != null && pick.roster_id !== draftSlots[pick.draft_slot] ? `. Pick traded to ${managers[pick.roster_id] ?? "drafting manager"}` : ""}. View details`}
         aria-describedby={
           hovered?.pick.pick_no === pick.pick_no && !selected
@@ -526,7 +539,7 @@ export function BestBallBoard({
                       {
                         title: "Board colors",
                         items: [
-                          "Green: scoring above draft expectations. Yellow: matching them. Red: below them. Gray: no rating.",
+                          "Colors gradually shift from red (below expectations), through yellow (near expectations), to green (above expectations), based on rank difference. Gray: no rating.",
                           "We compare scoring rank with preseason draft rank within each position.",
                         ],
                       },
