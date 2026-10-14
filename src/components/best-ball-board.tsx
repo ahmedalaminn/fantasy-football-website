@@ -318,7 +318,7 @@ export function BestBallBoard({
           </h4>
           <dl className="bb-detail-stats">
             <div>
-              <dt>Expected positional rank</dt>
+              <dt>Expected rank by total points</dt>
               <dd>
                 {season
                   ? `${season.position}${season.adpPositionRank} rank`
@@ -342,7 +342,7 @@ export function BestBallBoard({
               </dd>
             </div>
             <div>
-              <dt>Rank when playing</dt>
+              <dt>Rank by PPG</dt>
               <dd>
                 {perGame
                   ? `${perGame.position}${perGame.scoringRank}`
@@ -352,10 +352,6 @@ export function BestBallBoard({
               </dd>
             </div>
           </dl>
-          <p className="bb-production-disclaimer">
-            Ranks players at the same position by points per game played. Less
-            reliable with fewer games.
-          </p>
         </section>
         <section className="bb-rating-section">
           <h4>
@@ -397,7 +393,7 @@ export function BestBallBoard({
               </dd>
             </div>
             <div>
-              <dt>Average / game played</dt>
+              <dt>PPG</dt>
               <dd>
                 {scores[pick.player_id] != null &&
                 games?.available &&
@@ -544,7 +540,6 @@ export function BestBallBoard({
                         title: "Production",
                         items: [
                           "Points use your league’s scoring. Averages count games played only.",
-                          "Rank when playing compares players at the same position by points per game played. Less reliable with fewer games.",
                         ],
                       },
                       {
