@@ -2715,6 +2715,12 @@ a {
 .bb-pick-dialog .board-player > span {
   min-width: 0;
 }
+.bb-performance-note {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
 .bb-detail-stats {
   display: grid;
   gap: 10px;

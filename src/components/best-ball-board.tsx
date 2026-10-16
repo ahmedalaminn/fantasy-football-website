@@ -350,7 +350,7 @@ export function BestBallBoard({
           </h4>
           <dl className="bb-detail-stats">
             <div>
-              <dt>Expected rank by total points</dt>
+              <dt>Position rank by ADP</dt>
               <dd>
                 {season
                   ? `${season.position}${season.adpPositionRank} rank`
@@ -358,7 +358,7 @@ export function BestBallBoard({
               </dd>
             </div>
             <div>
-              <dt>Rank by total points</dt>
+              <dt>Position rank by total points</dt>
               <dd>
                 {season
                   ? `${season.position}${season.scoringRank} rank`
@@ -366,7 +366,7 @@ export function BestBallBoard({
               </dd>
             </div>
             <div>
-              <dt>Rank difference</dt>
+              <dt>Rank change vs. ADP</dt>
               <dd className={`grade-${currentGrade}`}>
                 {season
                   ? `${season.gain > 0 ? "+" : ""}${season.gain} rank places`
@@ -374,7 +374,7 @@ export function BestBallBoard({
               </dd>
             </div>
             <div>
-              <dt>Rank by PPG</dt>
+              <dt>Position rank by points per game</dt>
               <dd>
                 {perGame
                   ? `${perGame.position}${perGame.scoringRank}`
@@ -384,6 +384,10 @@ export function BestBallBoard({
               </dd>
             </div>
           </dl>
+          <p className="bb-performance-note">
+            Ranks compare players at the same position with available data.
+            Positive change means outperforming ADP (average draft position).
+          </p>
         </section>
         <section className="bb-rating-section">
           <h4>
