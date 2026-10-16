@@ -2213,6 +2213,25 @@ a {
 .bb-section-copy {
   padding: 24px;
 }
+.bb-board-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.bb-board-heading h3 {
+  margin: 0;
+}
+.bb-board-heading .button:disabled {
+  opacity: 0.6;
+  cursor: default;
+  transform: none;
+}
+.bb-board-save-error {
+  margin: 0 24px 16px;
+  color: var(--text);
+}
 .bb-section-copy h3 {
   font: 800 23px var(--display);
   margin: 0 0 8px;
@@ -4439,6 +4458,13 @@ a {
 .bb-draft-board .bb-round-axis {
   background: var(--draft-board-background, var(--surface));
   border-bottom: 0;
+}
+/* Keep the dark board, sticky labels, and title on one opaque surface. */
+:root[data-theme="dark"] .bb-board-scroll {
+  --draft-board-background: var(--surface);
+}
+:root[data-theme="dark"] .bb-results:has(#bb-panel-board)::after {
+  background: none;
 }
 .duel-card {
   padding: 14px;

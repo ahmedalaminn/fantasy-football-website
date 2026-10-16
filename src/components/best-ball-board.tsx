@@ -88,6 +88,38 @@ export function BestBallBoard({
   } | null>(null);
   const [selected, setSelected] = useState<SleeperDraftPick | null>(null);
   const detailDialog = useRef<HTMLDialogElement>(null);
+  const boardTable = useRef<HTMLTableElement>(null);
+  const [savingBoard, setSavingBoard] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  async function saveBoardImage() {
+    const table = boardTable.current;
+    if (!table || savingBoard) return;
+    setSavingBoard(true);
+    setSaveError("");
+    try {
+      await document.fonts.ready;
+      const { toBlob } = await import("html-to-image");
+      const blob = await toBlob(table, {
+        backgroundColor: getComputedStyle(table.parentElement!).backgroundColor,
+        width: table.scrollWidth,
+        height: table.scrollHeight,
+        pixelRatio: 2,
+      });
+      if (!blob) throw new Error("Image could not be created");
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.download = `${leagueName.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "league"}-draft-board${draftDate ? `-${draftDate}` : ""}.png`;
+      link.href = url;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch {
+      setSaveError("Could not save the board image. Please try again.");
+    } finally {
+      setSavingBoard(false);
+    }
+  }
   useEffect(() => {
     if (selected && !detailDialog.current?.open)
       detailDialog.current?.showModal();
@@ -700,9 +732,19 @@ export function BestBallBoard({
             id="bb-panel-board"
             aria-labelledby="bb-tab-board"
           >
-            <div className="bb-section-copy">
+            <div className="bb-section-copy bb-board-heading">
               <h3>Draft board</h3>
+              <button
+                type="button"
+                className="button"
+                onClick={saveBoardImage}
+                disabled={savingBoard || !visiblePicks.length}
+                aria-busy={savingBoard}
+              >
+                {savingBoard ? "Saving image…" : "Save board image"}
+              </button>
             </div>
+            {saveError && <p className="bb-board-save-error" role="alert">{saveError}</p>}
             {visiblePicks.length ? (
               <div
                 className="bb-board-scroll"
@@ -710,7 +752,7 @@ export function BestBallBoard({
                 aria-label="Draft board, scroll horizontally to see all managers"
                 tabIndex={0}
               >
-                <table className="bb-draft-board">
+                <table ref={boardTable} className="bb-draft-board">
                   <thead>
                     <tr>
                       <th scope="col" className="bb-round-axis">
